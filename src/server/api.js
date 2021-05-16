@@ -3,8 +3,6 @@ var express = require("express");
 var app = express();
 app.use(express.json());
 
-// 3 most basic functions
-
 // GET single segment by its ID
 app.get("/segment", (req, res, next) => {
 	// look up the segment by its id, return all info
@@ -19,6 +17,7 @@ app.get("/segment", (req, res, next) => {
 
 });
 
+
 // POST register new segment
 app.post('/segment', (req, res) => {
 	// make a new segment
@@ -30,6 +29,15 @@ app.post('/segment', (req, res) => {
 	db.Segment.create(obj)
 	res.send('created');
 })
+
+app.get("/segments", (req, res, next) => {
+	// look up the segment by its id, return all info
+	db.Segment.findAll().then(segments => {
+		res.json(segments)
+	})
+
+});
+
 
 // GET list of segments by location (lat lng) + range in KM
 // in the future also take in linstring rather than just point
