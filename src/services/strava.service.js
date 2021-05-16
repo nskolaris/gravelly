@@ -16,8 +16,8 @@ export function getAthlete () {
   return axios.get('https://www.strava.com/api/v3/athlete', { headers: { 'Authorization': `Bearer ${token}` } })
 }
 
-export function getActivities () {
-  return axios.get('https://www.strava.com/api/v3/athlete/activities', { headers: { 'Authorization': `Bearer ${token}` } })
+export function getActivities (page) {
+  return axios.get(`https://www.strava.com/api/v3/athlete/activities?page=${page || 1}`, { headers: { 'Authorization': `Bearer ${token}` } })
 }
 
 export function getActivity (id) {
