@@ -11,10 +11,15 @@
             {{ ac.name }}
           </div>
         </div>
-        <GmapMap :center="mapCenter" :zoom="10" map-type-id="terrain">
+        <!-- <GmapMap :center="mapCenter" :zoom="10" map-type-id="terrain">
           <GmapPolyline v-if="croppedPath" v-bind:path.sync="croppedPath" v-bind:options="{ strokeColor:'#FF0000'}"></GmapPolyline>
           <GmapPolyline v-for="(gravel, i) in gravels" v-bind:path.sync="gravel.path" v-bind:options="{ strokeColor: gravelIndex === i ? '#0000FF' : '#FF00FF'}" :key="gravel.name"></GmapPolyline>
-        </GmapMap>
+        </GmapMap> -->
+        <l-map :center="mapCenter" :zoom="10">
+          <l-tile-layer :url="'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"></l-tile-layer>
+          <l-polyline v-if="croppedPath" :lat-lngs="croppedPath" color="#FF0000"></l-polyline>
+          <l-polyline v-for="(gravel, i) in gravels" :lat-lngs="gravel.path" :color="gravelIndex === i ? '#0000FF' : '#FF00FF'" :key="gravel.name"></l-polyline>
+        </l-map>
         <div class="routeList gravels toggled">
           <div class="route" v-for="(gravel, i) in gravels" :key="i" @click="gravelIndex = i" :class="{active: gravelIndex === i}">
             {{ gravel.name }}
