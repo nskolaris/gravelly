@@ -18,13 +18,15 @@
         <l-polyline v-if="activity" :lat-lngs="activity.simplePath" color="#FF0000" @click="selectActivity(activity)"></l-polyline>
         <l-polyline v-if="newGravel.path" :lat-lngs="newGravel.path" color="#0000FF"></l-polyline>
         <l-polyline v-for="gr in gravels" :lat-lngs="gr.path" :color="gravel && gravel.id === gr.id ? '#0000FF' : '#FF00FF'" :key="gr.id" @click="selectGravel(gr.id)"></l-polyline>
-        <l-polyline v-if="orsDirections" :lat-lngs="orsDirections" color="#000000"></l-polyline>
+        <l-polyline v-if="newRoute.length > 0" :lat-lngs="newRoute" color="#000000"></l-polyline>
         <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2LatLng(timelineHover, activity.path)" :radius="5" color="#FF0000"/>
       </l-map>
       <div class="routeList gravels toggled">
         <div class="route" v-for="gr in gravels" :key="gr.id" @click="selectGravel(gr.id)" :class="{active: gravel && gravel.id === gr.id}">
           {{ gr.name }}
         </div>
+        <button class="toggleLinking" @click="toggleLinking">{{ linkingSegments ? 'Stop' : 'Start' }} Linking</button>
+        <button class="saveRoute" @click="saveLinking" :disabled="newRoute.length === 0">Export GPX</button>
       </div>
     </div>
     <div v-if="activity" class="activity">
@@ -47,6 +49,7 @@
 <script>
 import polyline from '@mapbox/polyline'
 import moment from 'moment'
+import togpx from 'togpx'
 
 import { getAuthUrl, getToken, getAthlete, getActivities, getActivityStream } from '@/services/strava.service'
 import { createSegment, getSegments } from '@/services/api.service'
@@ -76,7 +79,8 @@ export default {
       timelineStart: null,
       timelineEnd: null,
       timelineSelecting: false,
-      orsDirections: null
+      newRoute: [],
+      linkingSegments: false
     }
   },
   mounted () {
@@ -130,13 +134,13 @@ export default {
     selectGravel (id) {
       if (!this.gravel || this.gravel.id !== id) {
         const gravel = this.gravels.find(g => g.id === id)
-        if (this.gravel) {
+        if (this.gravel && this.linkingSegments) {
           const startPoint = this.gravel.path[this.gravel.path.length - 1]
           const endPoint = gravel.path[0]
-          // console.log(startPoint.lat + ',' + startPoint.lng, endPoint.lat + ',' + endPoint.lng)
+          this.newRoute = this.newRoute.concat(this.gravel.path)
           getDirections(startPoint.lng + ',' + startPoint.lat, endPoint.lng + ',' + endPoint.lat).then(r => {
-            this.orsDirections = r.data.features[0].geometry.coordinates.map(p => { return {lat: p[1], lng: p[0]} })
-            this.centerAndZoomPath(this.orsDirections)
+            this.newRoute = this.newRoute.concat(r.data.features[0].geometry.coordinates.map(p => { return {lat: p[1], lng: p[0]} }))
+            this.centerAndZoomPath(this.newRoute)
           })
         }
         this.gravel = gravel
@@ -153,6 +157,21 @@ export default {
       })
       this.gravels = newGravels
       this.newGravel = {}
+    },
+    toggleLinking () {
+      if (this.linkingSegments) this.newRoute = []
+      this.linkingSegments = !this.linkingSegments
+    },
+    saveLinking () {
+      this.newRoute = this.newRoute.concat(this.gravel.path)
+      const blob = togpx(polyline.toGeoJSON(polyline.encode(this.newRoute.map(p => [p.lat, p.lng]))), { creator: 'Gravelly App' })
+      const title = 'Gravel route'
+      const url = window.URL.createObjectURL(new Blob([blob]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', title + '.gpx')
+      document.body.appendChild(link)
+      link.click()
     },
     centerAndZoomPath (path) {
       const center = {lat: 0, lng: 0}
@@ -333,6 +352,24 @@ export default {
 .gravels {
   right: 0;
   transform: translateX(100%);
+}
+.gravels button {
+  position: absolute;
+  bottom: 10px;
+  margin: auto;
+  left: 0;
+  right: 0;
+  font-size: 17px;
+  border-radius: 50px;
+  border: none;
+  padding: 5px 15px;
+  cursor: pointer;
+}
+.gravels .toggleLinking {
+  bottom: 50px;
+}
+.gravels .saveRoute {
+  bottom: 10px;
 }
 
 .user .vue-map-container {
