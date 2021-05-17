@@ -1,8 +1,10 @@
 var db = require('./models/index.js');
 var polyline = require('@mapbox/polyline');
 var express = require("express");
+var cors = require('cors');
 var app = express();
 app.use(express.json());
+app.use(cors())
 
 // GET single segment by its ID
 app.get("/segment", (req, res, next) => {

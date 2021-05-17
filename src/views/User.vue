@@ -1,52 +1,54 @@
 <template>
   <div class="user">
-    <template v-if="user">
-      <div class="user_data">
+    <div class="user_data">
+      <template v-if="user">
         {{ user.firstname }}
         <img :src="user.profile_medium"/>
-      </div>
-      <div class="content">
-        <div class="routeList activities toggled" :class="{loading: activities.length === 0}">
-          <div class="route" v-for="(ac, i) in activities" :key="i" @click="selectActivity(ac.id)" :class="{active: (loadingActivityId || activity.id) === ac.id, loading: loadingActivityId === ac.id}">
-            {{ ac.name }}
-          </div>
-        </div>
-        <!-- <GmapMap :center="mapCenter" :zoom="10" map-type-id="terrain">
-          <GmapPolyline v-if="croppedPath" v-bind:path.sync="croppedPath" v-bind:options="{ strokeColor:'#FF0000'}"></GmapPolyline>
-          <GmapPolyline v-for="(gravel, i) in gravels" v-bind:path.sync="gravel.path" v-bind:options="{ strokeColor: gravelIndex === i ? '#0000FF' : '#FF00FF'}" :key="gravel.name"></GmapPolyline>
-        </GmapMap> -->
-        <l-map :center="mapCenter" :zoom="10">
-          <l-tile-layer :url="'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"></l-tile-layer>
-          <l-polyline v-if="path" :lat-lngs="path" color="#FF0000"></l-polyline>
-          <l-polyline v-if="croppedPath" :lat-lngs="croppedPath" color="#0000FF"></l-polyline>
-          <l-polyline v-for="(gravel, i) in gravels" :lat-lngs="gravel.path" :color="gravelIndex === i ? '#0000FF' : '#FF00FF'" :key="gravel.name"></l-polyline>
-          <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2LatLng(timelineHover, path)" :radius="5" color="#FF0000"/>
-        </l-map>
-        <div class="routeList gravels toggled">
-          <div class="route" v-for="(gravel, i) in gravels" :key="i" @click="gravelIndex = i" :class="{active: gravelIndex === i}">
-            {{ gravel.name }}
-          </div>
+      </template>
+      <a v-else :href="getAuthUrl()">Authorize</a>
+    </div>
+    <div class="content">
+      <div class="routeList activities toggled" :class="{loading: activities.length === 0}">
+        <div class="route" v-for="ac in activities" :key="ac.id" @click="selectActivity(ac)" :class="{active: activity && activity.id === ac.id, loading: loadingActivityId === ac.id}">
+          {{ ac.name }}
         </div>
       </div>
-      <div v-if="activity" class="activityDetails">
-        {{ activity.name }}
-        <div class="timeline" ref="timelineContainer">
-          <canvas id="timeline" @mousemove="timelineMove" @mousedown="timelineDown" @mouseup="timelineUp" @mouseout="timelineOut" height="0"/>
-        </div>
-        <div class="saveGravel">
-          <input v-model="newGravelName"/>
-          <button @click="saveGravel()">Save as gravel</button>
+      <l-map ref="leafmap" :center="mapCenter" :zoom="10">
+        <l-tile-layer :url="'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"></l-tile-layer>
+        <l-polyline v-if="activity" :lat-lngs="activity.simplePath" color="#FF0000" @click="selectActivity(activity)"></l-polyline>
+        <l-polyline v-if="newGravel.path" :lat-lngs="newGravel.path" color="#0000FF"></l-polyline>
+        <l-polyline v-for="gr in gravels" :lat-lngs="gr.path" :color="gravel && gravel.id === gr.id ? '#0000FF' : '#FF00FF'" :key="gr.id" @click="selectGravel(gr.id)"></l-polyline>
+        <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2LatLng(timelineHover, activity.path)" :radius="5" color="#FF0000"/>
+      </l-map>
+      <div class="routeList gravels toggled">
+        <div class="route" v-for="gr in gravels" :key="gr.id" @click="selectGravel(gr.id)" :class="{active: gravel && gravel.id === gr.id}">
+          {{ gr.name }}
         </div>
       </div>
-    </template>
-    <a v-else :href="getAuthUrl()">Authorize</a>
+    </div>
+    <div v-if="activity" class="activity">
+      <div class="activityDetails">
+        <div class="date">{{ activity.startDate }}</div>
+        <div class="name">{{ activity.name }}</div>
+      </div>
+      <div class="timeline" ref="timelineContainer">
+        <canvas id="timeline" @mousemove="timelineMove" @mousedown="timelineDown" @mouseup="timelineUp" @mouseout="timelineOut" height="75"/>
+      </div>
+      <div class="saveGravel">
+        <input v-model="newGravel.name" :disabled="!newGravel.path" placeholder="Name"/>
+        <input v-model="newGravel.description" :disabled="!newGravel.path" placeholder="Description"/>
+        <button @click="saveGravel()" :disabled="!newGravel.name || newGravel.name === ''">Save</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import polyline from '@mapbox/polyline'
+import moment from 'moment'
 
-import { getAuthUrl, getToken, getAthlete, getActivities, getActivity } from '@/services/strava.service'
+import { getAuthUrl, getToken, getAthlete, getActivities, getActivityStream } from '@/services/strava.service'
+import { createSegment, getSegments } from '@/services/api.service'
 
 export default {
   name: 'User',
@@ -55,89 +57,126 @@ export default {
       get () { return localStorage.token },
       set (token) { localStorage.token = token }
     },
-    gravels: {
-      get () {
-        let gravels = []
-        if (localStorage.gravels) gravels = JSON.parse(localStorage.gravels)
-        if (typeof gravels !== 'object') gravels = []
-        return gravels
-      },
-      set (gravels) { localStorage.gravels = JSON.stringify(gravels) }
-    }
   },
   data () {
     return {
       user: null,
       mapCenter: {lat: 0, lng: 0},
-      path: null,
-      croppedPath: null,
       activities: [],
+      loadingActivityId: null,
       activity: null,
       activityTimeline: null,
+      gravels: [],
+      gravel: null,
+      newGravel: {},
+      //Timeline vars
       timelineHover: null,
       timelineStart: null,
       timelineEnd: null,
-      timelineSelecting: false,
-      loadingActivityId: null,
-      newGravelName: '',
-      gravelIndex: null
+      timelineSelecting: false
     }
   },
   mounted () {
+    this.getInitialData()
     if (this.$route.query.code) getToken(this.$route.query.code).then(r => { this.token = r.data.access_token; this.$router.push('/'); this.$router.go() })
-    else if (this.token) this.getInitialData()
+    else if (this.token) this.getStravaData()
   },
   updated () {
     if (this.activity && !this.activityTimeline) {
       this.activityTimeline = document.getElementById("timeline")
       if (this.activityTimeline && this.$refs.timelineContainer) {
         this.activityTimeline.width = this.$refs.timelineContainer.clientWidth;
-        this.activityTimeline.height = this.$refs.timelineContainer.clientHeight;
         this.drawTimeline()
       }
     }
   },
   methods: {
     getAuthUrl () { return getAuthUrl() },
-    getInitialData ()  {
-      getAthlete().then(r => { this.user = r.data })
-      getActivities().then(r => { this.activities = r.data; this.selectActivity(this.activities[0].id) })
-    },
-    selectActivity (id) {
-      this.loadingActivityId = id;
-      getActivity(id).then(r => {
-        this.activity = r.data
-        this.loadingActivityId = null
-        this.path = polyline.decode(this.activity.map.summary_polyline).map(p => { return {lat: p[0], lng: p[1]} })
-        this.rangeSelector = [0, 100]
-        this.mapCenter = this.calculateCenter(this.path)
+    getInitialData () {
+      getSegments().then(r => {
+        this.gravels = r.data.map(g => {
+          g.path = polyline.decode(g.route).map(p => { return {lat: p[0], lng: p[1]} })
+          return g
+        })
       })
+    },
+    getStravaData ()  {
+      getAthlete().then(r => { this.user = r.data })
+      getActivities().then(r => {
+        this.activities = r.data;
+        if (this.activities.length > 0) this.selectActivity(this.activities[0])
+      })
+    },
+    selectActivity (act) {
+      if (!this.activity || this.activity.id !== act.id) {
+        this.activity = act
+        this.activity.simplePath = polyline.decode(this.activity.map.summary_polyline).map(p => { return {lat: p[0], lng: p[1]} })
+        this.activity.startDate = moment(this.activity.start_date_local).format('YYYY-MM-DD HH:mm')
+        delete this.newGravel.path
+        this.resetTimeline()
+        this.loadingActivityId = act.id
+        getActivityStream(act.id).then(streams => {
+          this.activity.path = streams.data.latlng.data.map(p => { return {lat: p[0], lng: p[1]} })
+          this.activity.altitude = streams.data.altitude.data
+          this.loadingActivityId = false
+          this.drawTimeline()
+        })
+      }
+      this.centerAndZoomPath(this.activity.simplePath)
+    },
+    selectGravel (id) {
+      if (!this.gravel || this.gravel.id !== id) {
+        this.gravel = this.gravels.find(g => g.id === id)
+      }
+      this.centerAndZoomPath(this.gravel.path)
     },
     saveGravel () {
       const newGravels = this.gravels
-      newGravels.push({
-        name: this.newGravelName || new Date().toString(),
-        path: this.croppedPath,
-        date: new Date().toString()
+      newGravels.push({...this.newGravel})
+      createSegment({
+        name: this.newGravel.name,
+        description: this.newGravel.description || '',
+        route: polyline.encode(this.newGravel.path.map(p => [p.lat, p.lng]))
       })
       this.gravels = newGravels
-      this.newGravelName = ''
+      this.newGravel = {}
     },
-    calculateCenter (path) {
+    centerAndZoomPath (path) {
       const center = {lat: 0, lng: 0}
+      const corner1 = []
+      const corner2 = []
       path.forEach(p => {
         center.lat += p.lat
         center.lng += p.lng
+        if (!corner1[0] || corner1[0] > p.lat) corner1[0] = p.lat
+        if (!corner2[0] || corner2[0] < p.lat) corner2[0] = p.lat
+        if (!corner1[1] || corner1[1] > p.lng) corner1[1] = p.lng
+        if (!corner2[1] || corner2[1] < p.lng) corner2[1] = p.lng
       });
       center.lat /= path.length
       center.lng /= path.length
-      return center
+      this.mapCenter = center
+      this.$refs.leafmap.mapObject.fitBounds([corner1, corner2], { padding: [30, 30] });
     },
+    // Timeline fns
     drawTimeline () {
       if (this.activityTimeline) {
         const canvas = this.activityTimeline.getBoundingClientRect()
         var ctx = this.activityTimeline.getContext("2d")
         ctx.clearRect(0, 0, canvas.width, canvas.height)
+        // TODO: Move to separate canvas
+        if (this.activity.altitude) {
+          ctx.beginPath()
+          const elevation_diff = this.activity.elev_high - this.activity.elev_low
+          this.activity.altitude.forEach((p, i) => {
+            const x = (((i * 100) / this.activity.altitude.length) * canvas.width) / 100
+            const y = (((((p - this.activity.elev_low) * 100) / elevation_diff) * canvas.height * 0.8) / 100) + canvas.height * 0.1
+            if (i === 0) ctx.moveTo(x, canvas.height - y)
+            else ctx.lineTo(x, canvas.height - y)
+          })
+          ctx.strokeStyle = "#fda400";
+          ctx.stroke()
+        }
         if (this.timelineHover) {
           ctx.beginPath()
           ctx.moveTo(this.timelineHover, 0)
@@ -147,7 +186,7 @@ export default {
         if (this.timelineStart) {
           ctx.beginPath();
           ctx.rect(this.timelineStart, 0, this.timelineEnd - this.timelineStart, canvas.height);
-          ctx.fillStyle = "#0000FFAA";
+          ctx.fillStyle = "#ffa60036";
           ctx.fill()
         }
       }
@@ -170,6 +209,7 @@ export default {
       this.timelineSelecting = false
       this.timelineEnd = e.clientX - canvas.left
       this.timelineCropPath()
+      this.centerAndZoomPath(this.newGravel.path)
     },
     timelineOut () {
       this.timelineHover = null
@@ -183,19 +223,20 @@ export default {
       return path[this.timelinePoint2PathIndex(point, path)]
     },
     timelineCropPath () {
-      const startIndex = this.timelinePoint2PathIndex(Math.min(this.timelineStart, this.timelineEnd), this.path)
-      const endIndex = this.timelinePoint2PathIndex(Math.max(this.timelineStart, this.timelineEnd), this.path)
-      const croppedPath = [...this.path]
+      const startIndex = this.timelinePoint2PathIndex(Math.min(this.timelineStart, this.timelineEnd), this.activity.path)
+      const endIndex = this.timelinePoint2PathIndex(Math.max(this.timelineStart, this.timelineEnd), this.activity.path)
+      const croppedPath = [...this.activity.path]
       croppedPath.length = endIndex
       croppedPath.splice(0, startIndex)
-      this.croppedPath = croppedPath
+      this.newGravel.path = croppedPath
+    },
+    resetTimeline () {
+      this.timelineStart = null
+      this.timelineEnd = null
+      this.drawTimeline()
     }
   },
   watch: {
-    gravelIndex () {
-      const gravel = this.gravels[this.gravelIndex]
-      this.mapCenter = this.calculateCenter(gravel.path)
-    },
     timelineHover () {
       this.drawTimeline()
     }
@@ -215,7 +256,7 @@ export default {
 
 .loading:after {
   content: "\27F3";
-  color: orange;
+  color: var(--detail-color);
   animation: 1s linear infinite spin;
 }
 
@@ -232,6 +273,9 @@ export default {
   padding: 10px 15px;
   justify-content: space-between;
 }
+.user .user_data img {
+  border-radius: 50%;
+}
 
 .user .content {
   display: flex;
@@ -244,12 +288,10 @@ export default {
   max-width: 250px;
   height: 100%;
   overflow-y: auto;
-  background-color: white;
+  background-color: var(--bg-color-2);
   transition: transform .5s, position 0s ease 5s;
   position: absolute;
-}
-.routeList.loading:after {
-
+  flex-shrink: 0;
 }
 .routeList.toggled {
   position: relative;
@@ -259,9 +301,10 @@ export default {
   cursor: pointer;
   padding: 10px 15px;
   position: relative;
+  border-radius: 50px;
 }
 .routeList .route.active {
-  background-color: #ffa60036;
+  background-color: var(--highlight-color);
 }
 .routeList .route.loading:after {
   font-size: 20px;
@@ -283,28 +326,45 @@ export default {
   flex: 1;
 }
 
-.activityDetails {
+.activity {
   display: flex;
-  padding: 15px;
   align-items: center;
   justify-content: space-between;
 }
-
-.rangeSlider {
-  flex: 1;
+.activity .activityDetails {
+  padding: 10px 15px;
+  flex-shrink: 0;
+  width: 20%;
+  max-width: 250px;
+  box-sizing: border-box;
+}
+.activity .activityDetails .name {
+  margin: 5px 0;
+}
+.activity .activityDetails .date {
+  font-size: 10px;
+  color: var(--text-color-2);
+}
+.activity .saveGravel {
+  padding: 10px 15px;
+  flex-shrink: 0;
+  width: 20%;
+  max-width: 250px;
+  box-sizing: border-box;
   display: flex;
-  justify-content: space-around;
+  flex-direction: column;
+  justify-content: space-between;
 }
-.rangeSlider input {
-  width: 40%;
+.activity .saveGravel input, .activity .saveGravel button {
+  margin-top: 5px;
 }
-
-.timeline {
+.activity .timeline {
   flex: 1;
   margin: 0 20px;
+  box-sizing: border-box;
 }
-.timeline canvas {
+.activity .timeline canvas {
   vertical-align: middle;
-  border: 1px solid gray;
+  background-color: var(--bg-color-2);
 }
 </style>

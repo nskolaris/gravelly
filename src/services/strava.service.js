@@ -23,3 +23,7 @@ export function getActivities (page) {
 export function getActivity (id) {
   return axios.get(`https://www.strava.com/api/v3/activities/${id}`, { headers: { 'Authorization': `Bearer ${token}` } })
 }
+
+export function getActivityStream (id) {
+  return axios.get(`https://www.strava.com/api/v3/activities/${id}/streams?keys=latlng,altitude&key_by_type=true`, { headers: { 'Authorization': `Bearer ${token}` } })
+}
