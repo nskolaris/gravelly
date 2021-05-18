@@ -11,7 +11,6 @@ app.use(cors())
 app.get("/segment", (req, res, next) => {
 	// look up the segment by its id, return all info
 	var segment_id = req.query.id
-	console.log(segment_id)
 	var segment = db.Segment.findByPk(parseInt(segment_id)).then(segment => {
 		if (segment instanceof db.Segment) {
 			segment.route = polyline.fromGeoJSON(segment.route);
@@ -59,7 +58,6 @@ app.get("/segments", (req, res, next) => {
 app.get("/segment_search", (req, res, next) => {
 	// find all relevant segments, return IDs, Names and geometries
 	// so they can be rendered on the front end
-	console.log(req.query)
 	if (typeof req.query.lat != 'undefined') {
 		var lat = req.query.lat
 		var lng = req.query.lng
