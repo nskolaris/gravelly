@@ -16,8 +16,8 @@ export function getAthlete () {
   return axios.get('https://www.strava.com/api/v3/athlete', { headers: { 'Authorization': `Bearer ${token}` } })
 }
 
-export function getActivities (page) {
-  return axios.get(`https://www.strava.com/api/v3/athlete/activities?page=${page || 1}`, { headers: { 'Authorization': `Bearer ${token}` } })
+export function getActivities (perPage, page) {
+  return axios.get(`https://www.strava.com/api/v3/athlete/activities?per_page=${perPage || ''}&page=${page || ''}`, { headers: { 'Authorization': `Bearer ${token}` } })
 }
 
 export function getActivity (id) {
@@ -25,5 +25,5 @@ export function getActivity (id) {
 }
 
 export function getActivityStream (id) {
-  return axios.get(`https://www.strava.com/api/v3/activities/${id}/streams?keys=latlng,altitude&key_by_type=true`, { headers: { 'Authorization': `Bearer ${token}` } })
+  return axios.get(`https://www.strava.com/api/v3/activities/${id}/streams?keys=latlng,altitude,time&key_by_type=true`, { headers: { 'Authorization': `Bearer ${token}` } })
 }

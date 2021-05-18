@@ -8,6 +8,6 @@ export function getSegments () {
   return axios.get(`http://localhost:3000/segments`)
 }
 
-export function getSegmentsByProximity (range, geom) {
-  return axios.get(`http://localhost:3000/segment_search?range=` + range + `&geom=` + geom)
+export function getSegmentsByProximity (range, geom, lat, lng) {
+  return axios.get(`http://localhost:3000/segment_search?range=${range}&geom=${geom}&lat=${lat}&lng=${lng}`)
 }
