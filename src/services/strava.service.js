@@ -13,7 +13,10 @@ export function getToken (code) {
 }
 
 export function getAthlete () {
-  return axios.get('https://www.strava.com/api/v3/athlete', { headers: { 'Authorization': `Bearer ${token}` } })
+  return axios.get('https://www.strava.com/api/v3/athlete', { headers: { 'Authorization': `Bearer ${token}` } }).catch(error => {
+    console.log(error)
+    localStorage.token = ''
+  })
 }
 
 export function getActivities (perPage, page) {

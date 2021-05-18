@@ -16,7 +16,7 @@
             {{ (ac.distance / 1000).toFixed(0) }} km
           </div>
         </div>
-        <div class="connectStrava" v-if="!user && !token">
+        <div class="connectStrava" v-if="!token">
           <a :href="getAuthUrl()">Connect with Strava</a> to create gravel segments from your activities
         </div>
       </div>
@@ -90,7 +90,7 @@ export default {
       user: null,
       // Map
       mapCenter: {lat: 0, lng: 0},
-      mapZoom: 15,
+      mapZoom: 10,
       currentPosition: null,
       // Activities
       loadingActivities: false,
