@@ -25,6 +25,7 @@
         <div class="route" v-for="gr in gravels" :key="gr.id" @click="selectGravel(gr.id)" :class="{active: gravel && gravel.id === gr.id}">
           {{ gr.name }}
         </div>
+        <button class="reccomendSegments" @click="reccomendSegments" :disabled="activity == null">Reccomend Segments</button>
         <button class="toggleLinking" @click="toggleLinking">{{ linkingSegments ? 'Stop' : 'Start' }} Linking</button>
         <button class="saveRoute" @click="saveLinking" :disabled="newRoute.length === 0">Export GPX</button>
       </div>
@@ -52,7 +53,7 @@ import moment from 'moment'
 import togpx from 'togpx'
 
 import { getAuthUrl, getToken, getAthlete, getActivities, getActivityStream } from '@/services/strava.service'
-import { createSegment, getSegments } from '@/services/api.service'
+import { createSegment, getSegments, getSegmentsByProximity} from '@/services/api.service'
 import { getDirections } from '@/services/ors.service'
 
 export default {
@@ -157,6 +158,22 @@ export default {
       })
       this.gravels = newGravels
       this.newGravel = {}
+    },
+    reccomendSegments() {
+      // get current strava route
+      var path = this.activity.simplePath
+      var encoded = polyline.encode(path.map(x => {
+          return [x.lat, x.lng]
+      }))
+      var range = 3000; // 5km
+      // post polystring to the server
+      getSegmentsByProximity(range, encoded).then(r => {
+        // highlight reccomended gravel for now
+        // in the future, make a route out of the activity and the segment
+        if (r.data.length > 0) {
+          this.selectGravel(r.data[0].id)
+        }
+      })
     },
     toggleLinking () {
       if (this.linkingSegments) this.newRoute = []
@@ -364,6 +381,9 @@ export default {
   border: none;
   padding: 5px 15px;
   cursor: pointer;
+}
+.gravels .reccomendSegments {
+  bottom: 90px;
 }
 .gravels .toggleLinking {
   bottom: 50px;

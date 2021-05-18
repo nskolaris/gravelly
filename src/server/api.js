@@ -1,4 +1,5 @@
 var db = require('./models/index.js');
+var wkt = require('wkt');
 var polyline = require('@mapbox/polyline');
 var express = require("express");
 var cors = require('cors');
@@ -9,10 +10,11 @@ app.use(cors())
 // GET single segment by its ID
 app.get("/segment", (req, res, next) => {
 	// look up the segment by its id, return all info
-	var segment_id = req.id
-	var segment = db.Segment.findByPk(segment_id).then(segment => {
+	var segment_id = req.query.id
+	console.log(segment_id)
+	var segment = db.Segment.findByPk(parseInt(segment_id)).then(segment => {
 		if (segment instanceof db.Segment) {
-			segment.route = polyline.fromGeoJSON(s.route);
+			segment.route = polyline.fromGeoJSON(segment.route);
 			res.json(segment)
 		} else {
 			res.json({})
@@ -54,11 +56,29 @@ app.get("/segments", (req, res, next) => {
 
 
 // GET list of segments by location (lat lng) + range in KM
-// in the future also take in linstring rather than just point
 app.get("/segment_search", (req, res, next) => {
 	// find all relevant segments, return IDs, Names and geometries
 	// so they can be rendered on the front end
-	res.json(["Tony","Lisa","Michael","Ginger","Food"]);
+	var geom = wkt.stringify(polyline.toGeoJSON(req.query.geom));
+	var range = req.query.range;
+	db.Segment.findAll({
+	      where: db.sequelize.where(
+		      db.sequelize.fn(
+			      'ST_DWithin',
+			      db.sequelize.col('route'),
+			      geom,
+			      range,
+			      true
+		      ),
+		      true
+	      )
+	}).then(segments => {
+		segments.map(s => {
+			s.route = polyline.fromGeoJSON(s.route);
+		})
+		res.json(segments)
+	})
+
 });
 
 // TODO: update/delete on segment
