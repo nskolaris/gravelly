@@ -2,6 +2,9 @@
 node_modules
 /dist
 
+# temporary file storage (will use CDN in prod)
+assets/images/
+
 
 # local env files
 .env
