@@ -8,18 +8,27 @@
       </div>
     </div>
     <div class="content">
-      <div class="routeList activities toggled" @scroll="scrollActivities" :class="{loading: loadingActivities}">
-        <div class="route" v-for="ac in activities" :key="ac.id" @click="selectActivity(ac)" :class="{active: activity && activity.id === ac.id}">
-          <div class="name">{{ ac.name }}</div>
-          <div class="details">
-            {{ moment(ac.start_date).format('MMM DD') }}<br/>
-            {{ (ac.distance / 1000).toFixed(0) }} km
+
+      <div class="routeList activities toggled">
+        <template v-if="token">
+          <div class="head">
+            <h1>Your activities</h1>
           </div>
-        </div>
-        <div class="connectStrava" v-if="!token">
+          <div class="scrollContainer" @scroll="scrollActivities" :class="{loading: loadingActivities}">
+            <div class="route" v-for="ac in activities" :key="ac.id" @click="selectActivity(ac)" :class="{active: activity && activity.id === ac.id}">
+              <div class="name">{{ ac.name }}</div>
+              <div class="details">
+                {{ moment(ac.start_date).format('MMM DD') }}<br/>
+                {{ (ac.distance / 1000).toFixed(0) }} km
+              </div>
+            </div>
+          </div>
+        </template>
+        <div class="connectStrava" v-else>
           <a :href="getAuthUrl()">Connect with Strava</a> to create gravel segments from your activities
         </div>
       </div>
+
       <l-map ref="leafmap" :center="mapCenter" :zoom="mapZoom">
         <l-tile-layer :url="'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"></l-tile-layer>
         <!-- Segment search area -->
@@ -37,14 +46,21 @@
         <!-- Timeline pointer -->
         <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.path))" :radius="5" :color="pointerColor"/>
       </l-map>
+
       <div class="routeList gravels toggled">
-        <div class="route" v-for="gr in gravels" :key="gr.id" @click="selectGravel(gr.id)" :class="{active: gravel && gravel.id === gr.id}">
-          {{ gr.name }}
+        <div class="head">
+          <h1>Segments</h1>
+        </div>
+        <div class="scrollContainer">
+          <div class="route" v-for="gr in gravels" :key="gr.id" @click="selectGravel(gr.id)" :class="{active: gravel && gravel.id === gr.id}">
+            {{ gr.name }}
+          </div>
         </div>
         <button class="reccomendSegments" @click="reccomendSegments" :disabled="activity == null">Reccomend Segments</button>
         <button class="toggleLinking" @click="toggleLinking">{{ linkingSegments ? 'Stop' : 'Start' }} Linking</button>
         <button class="saveRoute" @click="saveLinking" :disabled="newRoute.length === 0">Export GPX</button>
       </div>
+
     </div>
     <div v-if="activity" class="activity">
       <div class="activityDetails">
@@ -62,10 +78,12 @@
           <span v-if="timelineHover && activity.altitude">{{ timelinePoint2ArrayValue(timelineHover, activity.altitude) }} m</span>
         </div>
       </div>
+
       <div class="timeline" ref="timelineContainer" :class="{loading: activity.loading}">
         <canvas ref="timeline" height="0"/>
         <canvas ref="selection" @mousemove="timelineMove" @mousedown="timelineDown" @mouseup="timelineUp" @mouseout="timelineOut" height="0"/>
       </div>
+
       <div class="newSegment">
         <template v-if="newGravel">
           <input v-model="newGravel.name" placeholder="Name"/>
@@ -117,7 +135,7 @@ export default {
       activities: [],
       activity: null,
       // Segments
-      segmentSearchRange: 50000,
+      segmentSearchRange: 200000,
       gravels: [],
       gravel: null,
       newGravel: null,
@@ -451,13 +469,13 @@ export default {
   font-family: 'Roboto', sans-serif;
 }
 
-.head {
+.main > .head {
   display: flex;
   padding: 10px 15px;
   align-items: center;
   justify-content: space-between;
 }
-.head h1 {
+.main > .head h1 {
   font-weight: 300;
   font-family: 'Kaushan Script', cursive;
   color: var(--text-color-3);
@@ -484,19 +502,67 @@ export default {
   width: 20%;
   max-width: 250px;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   background-color: var(--bg-color-2);
   transition: transform .5s, position 0s ease 5s;
   position: absolute;
   flex-shrink: 0;
-  padding: 0 5px;
-  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 .routeList.toggled {
   position: relative;
   transform: none;
 }
+/* .routeList.loading:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background-color: #000A;
+  z-index: 2;
+}
 .routeList.loading:after {
+  width: 50px;
+  height: 50px;
+  font-size: 33px;
+  padding-left: 11px;
+  box-sizing: border-box;
+  z-index: 3;
+  position: absolute;
+  margin: auto;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+} */
+.routeList > .head {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  z-index: 1;
+  background: linear-gradient(to bottom, rgba(0,0,0,1) 0%,rgba(255,255,255,0) 100%);
+  padding: 5px 10px 10px;
+  pointer-events: none;
+}
+.routeList > .head h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--text-color-3);
+  font-family: 'Kaushan Script', cursive;
+}
+.routeList .scrollContainer {
+  height: 100%;
+  overflow-y: auto;
+  padding: 45px 5px 0;
+}
+.routeList .scrollContainer.loading:after {
   width: 50px;
   height: 50px;
   margin: auto;
