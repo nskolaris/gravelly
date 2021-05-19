@@ -12,7 +12,7 @@
       <div class="routeList activities toggled">
         <template v-if="token">
           <div class="head">
-            <h1>Your activities</h1>
+            <h1>Your Activities</h1>
           </div>
           <div class="scrollContainer" @scroll="scrollActivities" :class="{loading: loadingActivities}">
             <div class="route" v-for="ac in activities" :key="ac.id" @click="selectActivity(ac)" :class="{active: activity && activity.id === ac.id}">
@@ -480,6 +480,7 @@ export default {
   font-family: 'Kaushan Script', cursive;
   color: var(--text-color-3);
   margin: 0;
+  font-size: 30px;
 }
 
 .user_data {
@@ -490,6 +491,7 @@ export default {
 .user_data img {
   border-radius: 50%;
   margin-left: 20px;
+  height: 40px;
 }
 
 .content {

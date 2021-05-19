@@ -22,3 +22,18 @@ npm run lint
 
 ### Customize configuration
 See [Configuration Reference](https://cli.vuejs.org/config/).
+
+### Planned features
+- Fix strava connection
+- Waypoint / Segment snapping routing
+- Timeline Selection: step selecting
+- Timeline Selection: Lap cropping
+- Segment list panel not really necessary
+- Segment name non obligatory (we cannot possibly name every single bit of gravel)
+- Import activity from GPX
+- Draw segment (manual/auto)
+- Add pictures to segment
+- Segment type / filters
+- Activity filters
+- Segment search around marker / area setting
+- Segment rating
