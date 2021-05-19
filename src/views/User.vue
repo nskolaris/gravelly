@@ -22,13 +22,20 @@
       </div>
       <l-map ref="leafmap" :center="mapCenter" :zoom="mapZoom">
         <l-tile-layer :url="'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"></l-tile-layer>
-        <l-polyline v-if="activity" :lat-lngs="activity.simplePath" color="#FF0000" @click="selectActivity(activity)"></l-polyline>
-        <l-polyline v-if="newGravel.path" :lat-lngs="newGravel.path" color="#0000FF"></l-polyline>
-        <l-polyline v-for="gr in gravels" :lat-lngs="gr.path" :color="gravel && gravel.id === gr.id ? '#0000FF' : '#2f2f2f'" :key="gr.id" @click="selectGravel(gr.id)"></l-polyline>
-        <l-polyline v-if="newRoute.length > 0" :lat-lngs="newRoute" color="#000000"></l-polyline>
-        <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2LatLng(timelineHover, activity.path)" :radius="5" color="#FF0000"/>
-        <l-circle-marker v-if="currentPosition" :lat-lng="currentPosition" :radius="5" color="#00FF00"/>
-        <l-circle v-if="currentPosition" :lat-lng="currentPosition" :radius="segmentSearchRange" color="#000000" :fill="false"/>
+        <!-- Segment search area -->
+        <l-circle v-if="currentPosition" :lat-lng="currentPosition" :radius="segmentSearchRange" :color="seachAreaColor" :fill="false"/>
+        <!-- Activity -->
+        <l-polyline v-if="activity" :lat-lngs="activity.simplePath" :color="activityColor" @click="selectActivity(activity)"></l-polyline>
+         <!-- Segments -->
+        <l-polyline v-for="gr in gravels" :lat-lngs="gr.path" :color="segmentColor" :key="gr.id" @click="selectGravel(gr.id)"></l-polyline>
+        <!-- Route -->
+        <l-polyline v-if="newRoute.length > 0" :lat-lngs="newRoute" :color="routeColor"></l-polyline>
+        <!-- Current location -->
+        <l-circle-marker v-if="currentPosition" :lat-lng="currentPosition" :radius="5" :color="currentLocationColor"/>
+        <!-- Timeline selection -->
+        <l-polyline v-if="timelineStart || pathSelectionStartEndIndex" :lat-lngs="getSelectingPath(activity.path) || getSelectedPath(activity.path)" :color="selectionColor"></l-polyline>
+        <!-- Timeline pointer -->
+        <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.path))" :radius="5" :color="pointerColor"/>
       </l-map>
       <div class="routeList gravels toggled">
         <div class="route" v-for="gr in gravels" :key="gr.id" @click="selectGravel(gr.id)" :class="{active: gravel && gravel.id === gr.id}">
@@ -43,26 +50,31 @@
       <div class="activityDetails">
         <div class="detail">
           <span>{{ moment(activity.start_date).format('YYYY-MM-DD HH:mm') }}</span>
-          <span>{{ moment().startOf('day').seconds(timelineHover && activity.time ? timelinePoint2LatLng(timelineHover, activity.time) : activity.elapsed_time).format('H:mm:ss') }}</span>
+          <span>{{ moment().startOf('day').seconds(timelineHover && activity.time ? timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.time)) : activity.elapsed_time).format('H:mm:ss') }}</span>
         </div>
         <div class="name">{{ activity.name }}</div>
         <div class="detail">
           <span>{{ (activity.distance / 1000).toFixed(2) }} km</span>
-          <span v-if="timelineHover && activity.distanceStream">{{ (timelinePoint2LatLng(timelineHover, activity.distanceStream) / 1000).toFixed(2) }} km</span>
+          <span v-if="timelineHover && activity.distanceStream">{{ (timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.distanceStream)) / 1000).toFixed(2) }} km</span>
         </div>
         <div class="detail">
           <span>{{ activity.total_elevation_gain }} m</span>
-          <span v-if="timelineHover && activity.altitude">{{ timelinePoint2LatLng(timelineHover, activity.altitude) }} m</span>
+          <span v-if="timelineHover && activity.altitude">{{ timelinePoint2ArrayValue(timelineHover, activity.altitude) }} m</span>
         </div>
       </div>
       <div class="timeline" ref="timelineContainer" :class="{loading: activity.loading}">
         <canvas ref="timeline" height="0"/>
         <canvas ref="selection" @mousemove="timelineMove" @mousedown="timelineDown" @mouseup="timelineUp" @mouseout="timelineOut" height="0"/>
       </div>
-      <div class="saveGravel">
-        <input v-model="newGravel.name" :disabled="!newGravel.path" placeholder="Name"/>
-        <input v-model="newGravel.description" :disabled="!newGravel.path" placeholder="Description"/>
-        <button @click="saveGravel()" :disabled="!newGravel.name || newGravel.name === ''">Save</button>
+      <div class="newSegment">
+        <template v-if="newGravel">
+          <input v-model="newGravel.name" placeholder="Name"/>
+          <input v-model="newGravel.description" placeholder="Description"/>
+          <button @click="saveGravel()" :disabled="!newGravel.name || newGravel.name === ''">Save</button>
+        </template>
+        <button v-else @click="newGravel = { path: getSelectedPath(activity.path) }">
+          Save as segment
+        </button>
       </div>
     </div>
   </div>
@@ -92,6 +104,13 @@ export default {
       mapCenter: {lat: 0, lng: 0},
       mapZoom: 10,
       currentPosition: null,
+      activityColor: '#FF0000',
+      selectionColor: '#0000FF',
+      segmentColor: '#2f2f2f',
+      routeColor: 'orange',
+      pointerColor: 'orange',
+      currentLocationColor: '#00FF00',
+      seachAreaColor: '#2f2f2f',
       // Activities
       loadingActivities: false,
       activitiesPerPage: 30,
@@ -101,15 +120,14 @@ export default {
       segmentSearchRange: 50000,
       gravels: [],
       gravel: null,
-      newGravel: {},
+      newGravel: null,
       // Routing
       newRoute: [],
       linkingSegments: false,
       //Timeline
       timelineHover: null,
       timelineStart: null,
-      timelineEnd: null,
-      timelineSelecting: false
+      pathSelectionStartEndIndex: null
     }
   },
   mounted () {
@@ -136,7 +154,7 @@ export default {
     getInitialData () {
       this.getSegments()
     },
-    getStravaData ()  {
+    getStravaData () {
       getAthlete().then(r => { this.user = r.data })
       this.getActivities()
     },
@@ -223,7 +241,7 @@ export default {
         route: polyline.encode(this.newGravel.path.map(p => [p.lat, p.lng]))
       })
       this.gravels = newGravels
-      this.newGravel = {}
+      this.newGravel = null
     },
     reccomendSegments() {
       // get current strava route
@@ -293,11 +311,18 @@ export default {
         ctx.strokeStyle = "#fda400";
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         if (this.activity.altitude) {
+          const altitude = this.getSelectedPath(this.activity.altitude)
+          let elev_high = this.activity.elev_high
+          let elev_low = this.activity.elev_low
+          if (this.pathSelectionStartEndIndex) {
+            elev_high = Math.max(...altitude)
+            elev_low = Math.min(...altitude)
+          }
           ctx.beginPath()
-          const elevation_diff = this.activity.elev_high - this.activity.elev_low
-          this.activity.altitude.forEach((p, i) => {
-            const x = (((i * 100) / this.activity.altitude.length) * canvas.width) / 100
-            const y = (((((p - this.activity.elev_low) * 100) / elevation_diff) * canvas.height * 0.8) / 100) + canvas.height * 0.1
+          const elevation_diff = elev_high - elev_low
+          altitude.forEach((p, i) => {
+            const x = (((i * 100) / altitude.length) * canvas.width) / 100
+            const y = (((((p - elev_low) * 100) / elevation_diff) * canvas.height * 0.8) / 100) + canvas.height * 0.1
             if (i === 0) ctx.moveTo(x, canvas.height - y)
             else ctx.lineTo(x, canvas.height - y)
           })
@@ -310,61 +335,56 @@ export default {
         const canvas = this.$refs.selection.getBoundingClientRect()
         var ctx = this.$refs.selection.getContext("2d")
         ctx.strokeStyle = "#fda400";
+        ctx.fillStyle = "#ffa60036";
         ctx.clearRect(0, 0, canvas.width, canvas.height)
+        if (this.timelineStart) {
+          ctx.beginPath()
+          ctx.rect(this.timelineStart, 0, this.timelineHover - this.timelineStart, canvas.height);
+          ctx.fill()
+        }
         if (this.timelineHover) {
           ctx.beginPath()
           ctx.moveTo(this.timelineHover, 0)
           ctx.lineTo(this.timelineHover, canvas.height)
           ctx.stroke()
         }
-        if (this.timelineStart) {
-          ctx.beginPath();
-          ctx.rect(this.timelineStart, 0, this.timelineEnd - this.timelineStart, canvas.height);
-          ctx.fillStyle = "#ffa60036";
-          ctx.fill()
-        }
       }
     },
     timelineMove (e) {
       const canvas = this.$refs.timeline.getBoundingClientRect()
       this.timelineHover = e.clientX - canvas.left
-      if (this.timelineSelecting) {
-        this.timelineEnd = e.clientX - canvas.left
-        this.timelineCropPath()
-      }
     },
     timelineDown (e) {
       const canvas = this.$refs.timeline.getBoundingClientRect()
-      this.timelineSelecting = true
       this.timelineStart = e.clientX - canvas.left
-    },
-    timelineUp (e) {
-      const canvas = this.$refs.timeline.getBoundingClientRect()
-      this.timelineSelecting = false
-      this.timelineEnd = e.clientX - canvas.left
-      if (JSON.stringify(this.timelineStart) !== JSON.stringify(this.timelineEnd)) {
-        this.timelineCropPath()
-        this.centerAndZoomPath(this.newGravel.path)
-      } else this.resetTimeline()
     },
     timelineOut () {
       this.timelineHover = null
     },
-    timelinePoint2PathIndex (point, path) {
+    timelineUp (e) {
+      const canvas = this.$refs.timeline.getBoundingClientRect()
+      this.timelineHover = e.clientX - canvas.left
+      if (this.timelineStart !== this.timelineHover) {
+        const startIndex = this.timelinePoint2ArrayIndex(Math.min(this.timelineStart, this.timelineHover), this.getSelectedPath(this.activity.path))
+        const endIndex = this.timelinePoint2ArrayIndex(Math.max(this.timelineStart, this.timelineHover), this.getSelectedPath(this.activity.path))        
+        this.pathSelectionStartEndIndex = [(this.pathSelectionStartEndIndex ? this.pathSelectionStartEndIndex[0] : 0) + startIndex]
+        this.pathSelectionStartEndIndex[1] = this.pathSelectionStartEndIndex[0] + (endIndex - startIndex)
+        this.centerAndZoomPath(this.getSelectedPath(this.activity.path))
+        this.timelineStart = null
+        this.drawTimeline()
+        this.drawSelection()
+      } else {
+        this.resetTimeline()
+        this.centerAndZoomPath(this.activity.simplePath)
+      }
+    },
+    timelinePoint2ArrayIndex (point, path) {
       const canvas = this.$refs.timeline.getBoundingClientRect()
       const pointPerc = point * 100 / canvas.width
       return Math.round(pointPerc * (path.length - 1) / 100)
     },
-    timelinePoint2LatLng (point, path) {
-      return path[this.timelinePoint2PathIndex(point, path)]
-    },
-    timelineCropPath () {
-      const startIndex = this.timelinePoint2PathIndex(Math.min(this.timelineStart, this.timelineEnd), this.activity.path)
-      const endIndex = this.timelinePoint2PathIndex(Math.max(this.timelineStart, this.timelineEnd), this.activity.path)
-      const croppedPath = [...this.activity.path]
-      croppedPath.length = endIndex
-      croppedPath.splice(0, startIndex)
-      this.newGravel.path = this.getCroppedPath(this.activity.path, startIndex, endIndex)
+    timelinePoint2ArrayValue (point, path) {
+      return path[this.timelinePoint2ArrayIndex(point, path)]
     },
     getCroppedPath (path, startIndex, endIndex) {
       const croppedPath = [...path]
@@ -372,10 +392,27 @@ export default {
       croppedPath.splice(0, startIndex)
       return croppedPath
     },
+    getSelectedPath (path) {
+      if (this.pathSelectionStartEndIndex) {
+        const startIndex = this.pathSelectionStartEndIndex[0]
+        const endIndex = this.pathSelectionStartEndIndex[1]
+        return this.getCroppedPath(path, startIndex, endIndex)
+      }
+      return path
+    },
+    getSelectingPath (path) {
+      if (this.timelineStart) {
+        path = this.getSelectedPath(path)
+        const startIndex = this.timelinePoint2ArrayIndex(Math.min(this.timelineStart, this.timelineHover), path)
+        const endIndex = this.timelinePoint2ArrayIndex(Math.max(this.timelineStart, this.timelineHover), path)
+        return this.getCroppedPath(path, startIndex, endIndex)
+      }
+      return null
+    },
     resetTimeline () {
       this.timelineStart = null
-      this.timelineEnd = null
-      delete this.newGravel.path
+      this.pathSelectionStartEndIndex = null
+      this.newGravel = null
       this.$forceUpdate()
       this.drawTimeline()
       this.drawSelection()
@@ -388,7 +425,7 @@ export default {
 </script>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Knewave&family=Pacifico&family=Pattaya&family=Roboto&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Roboto&display=swap');
 
 @keyframes spin {
   from {
@@ -423,9 +460,6 @@ export default {
 .head h1 {
   font-weight: 300;
   font-family: 'Kaushan Script', cursive;
-  /* font-family: 'Knewave', cursive;
-  font-family: 'Pacifico', cursive;
-  font-family: 'Pattaya', sans-serif; */
   color: var(--text-color-3);
   margin: 0;
 }
@@ -571,7 +605,7 @@ export default {
   display: flex;
   justify-content: space-between;
 }
-.activity .saveGravel {
+.activity .newSegment {
   padding: 10px 15px;
   flex-shrink: 0;
   width: 20%;
@@ -581,7 +615,7 @@ export default {
   flex-direction: column;
   justify-content: space-between;
 }
-.activity .saveGravel input, .activity .saveGravel button {
+.activity .newSegment input, .activity .newSegment button {
   margin-top: 5px;
 }
 
