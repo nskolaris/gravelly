@@ -11,7 +11,11 @@ app.use(cors())
 app.get("/segment", (req, res, next) => {
 	// look up the segment by its id, return all info
 	var segment_id = req.query.id
-	var segment = db.Segment.findByPk(parseInt(segment_id)).then(segment => {
+	var segment = db.Segment.findByPk(parseInt(segment_id), {
+		include: {
+			model: db.Picture
+		}
+	}).then(segment => {
 		if (segment instanceof db.Segment) {
 			segment.route = polyline.fromGeoJSON(segment.route);
 			res.json(segment)
@@ -21,6 +25,7 @@ app.get("/segment", (req, res, next) => {
 	});
 
 });
+
 
 
 // POST register new segment
@@ -41,6 +46,44 @@ app.post('/segment', (req, res) => {
 	db.Segment.create(obj)
 	res.send('created');
 })
+
+app.get("/picture", (req, res, next) => {
+	// look up the segment by its id, return all info
+	var picture_id = req.query.id
+	var picture = db.Picture.findByPk(parseInt(picture_id)).then(segment => {
+		if (segment instanceof db.Picture) {
+			res.json(segment)
+		} else {
+			res.json({})
+		}
+	});
+
+});
+
+
+app.post('/picture', (req, res) => {
+	// TODO: some image handling needs to happen here
+	var path = 'assets/test.jpg'
+	var name = 'test1'
+	obj = {
+		path: path,
+		name: req.body.name,
+		description: req.body.description,
+		lat: parseFloat(req.body.lat),
+		lng: parseFloat(req.body.lng),
+		SegmentId: parseInt(req.body.SegmentId),
+	}
+	db.Picture.create(obj)
+	res.send('created');
+})
+
+app.get("/pictures", (req, res, next) => {
+	db.Picture.findAll().then(pictures => {
+		res.json(pictures)
+	})
+
+});
+
 
 app.get("/segments", (req, res, next) => {
 	// look up the segment by its id, return all info

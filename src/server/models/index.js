@@ -34,4 +34,6 @@ Object.keys(db).forEach(modelName => {
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
+db.Segment.Pictures = db.Segment.hasMany(db.Picture)
+
 module.exports = db;
