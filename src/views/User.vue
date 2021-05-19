@@ -12,7 +12,7 @@
         <div class="route" v-for="ac in activities" :key="ac.id" @click="selectActivity(ac)" :class="{active: activity && activity.id === ac.id}">
           <div class="name">{{ ac.name }}</div>
           <div class="details">
-            {{ moment(ac.start_date_local).format('MMM DD') }}<br/>
+            {{ moment(ac.start_date).format('MMM DD') }}<br/>
             {{ (ac.distance / 1000).toFixed(0) }} km
           </div>
         </div>
@@ -42,7 +42,7 @@
     <div v-if="activity" class="activity">
       <div class="activityDetails">
         <div class="detail">
-          <span>{{ moment(activity.start_date_local).format('YYYY-MM-DD HH:mm') }}</span>
+          <span>{{ moment(activity.start_date).format('YYYY-MM-DD HH:mm') }}</span>
           <span>{{ moment().startOf('day').seconds(timelineHover && activity.time ? timelinePoint2LatLng(timelineHover, activity.time) : activity.elapsed_time).format('H:mm:ss') }}</span>
         </div>
         <div class="name">{{ activity.name }}</div>

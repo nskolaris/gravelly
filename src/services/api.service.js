@@ -9,5 +9,6 @@ export function getSegments () {
 }
 
 export function getSegmentsByProximity (range, geom, lat, lng) {
-  return axios.get(`http://localhost:3000/segment_search?range=${range}&geom=${geom}&lat=${lat}&lng=${lng}`)
+  if (geom) return axios.get(`http://localhost:3000/segment_search?range=${range}&geom=${geom}`)
+  else return axios.get(`http://localhost:3000/segment_search?range=${range}&lat=${lat}&lng=${lng}`)
 }
