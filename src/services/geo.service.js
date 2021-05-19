@@ -51,7 +51,7 @@ export function spliceActivityToRoute(activity, route) {
 	var retPromise = new Promise((resolve) => {
 		Promise.all([activityToRouteDirections, routeToActivityDirections]).then(vals => {
 			
-			var newRoute = activity.splice(0, activitySplitStart)
+			var newRoute = activity.slice(0, activitySplitStart)
 			newRoute = newRoute.concat(
 				vals[0].data.features[0].geometry.coordinates.map(p => { return {lat: p[1], lng: p[0]} })
 			)
@@ -59,7 +59,7 @@ export function spliceActivityToRoute(activity, route) {
 			newRoute = newRoute.concat(
 				vals[1].data.features[0].geometry.coordinates.map(p => { return {lat: p[1], lng: p[0]} })
 			)
-			newRoute = newRoute.concat(activity.splice(endPoint, activity.length-1))
+			newRoute = newRoute.concat(activity.slice(activitySplitEnd, activity.length))
 			resolve(newRoute)
 		})
 	})
