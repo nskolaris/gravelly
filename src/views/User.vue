@@ -105,6 +105,7 @@ import togpx from 'togpx'
 
 import { getAuthUrl, getToken, getAthlete, getActivities, getActivityStream } from '@/services/strava.service'
 import { createSegment, getSegments, getSegmentsByProximity} from '@/services/api.service'
+import { addRoutesToActivity } from '@/services/geo.service'
 import { getDirections } from '@/services/ors.service'
 
 export default {
@@ -273,7 +274,13 @@ export default {
         // highlight reccomended gravel for now
         // in the future, make a route out of the activity and the segment
         if (r.data.length > 0) {
-          this.selectGravel(r.data[0].id)
+            console.log(r.data)
+            var routes = r.data.map(s => {return polyline.decode(s.route)})
+            routes = routes.map(route => {return route.map(coords => {return {lat: coords[0], lng: coords[1]}})})
+            addRoutesToActivity(this.activity.simplePath, routes).then(retval => {
+                this.newRoute = retval
+            })
+          //this.selectGravel(r.data[0].id)
         }
       })
     },
