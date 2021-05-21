@@ -24,7 +24,6 @@ npm run lint
 See [Configuration Reference](https://cli.vuejs.org/config/).
 
 ### Planned features
-- Fix strava connection
 - Waypoint / Segment snapping routing
 - Timeline Selection: step selecting
 - Timeline Selection: Lap cropping

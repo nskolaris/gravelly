@@ -10,7 +10,7 @@
     <div class="content">
 
       <div class="routeList activities toggled">
-        <template v-if="token">
+        <template v-if="stravaAuthenticated">
           <div class="head">
             <h1>Your Activities</h1>
           </div>
@@ -110,15 +110,10 @@ import { getDirections } from '@/services/ors.service'
 
 export default {
   name: 'User',
-  computed: {
-    token: {
-      get () { return localStorage.token },
-      set (token) { localStorage.token = token }
-    },
-  },
   data () {
     return {
       user: null,
+      stravaAuthenticated: false,
       // Map
       mapCenter: {lat: 0, lng: 0},
       mapZoom: 10,
@@ -155,8 +150,9 @@ export default {
       this.mapCenter = this.currentPosition
       this.getInitialData()
     }, this.getInitialData)
-    if (this.$route.query.code) getToken(this.$route.query.code).then(r => { this.token = r.data.access_token; this.$router.push('/'); this.$router.go() })
-    else if (this.token) this.getStravaData()
+
+    if (localStorage.token) this.getStravaData()
+    else if (this.$route.query.code) getToken(this.$route.query.code).then(() => { this.$router.push('/'); this.$router.go() })
   },
   updated () {
     if (this.$refs.timeline && this.$refs.timeline.height === 0) this.sizeTimeline()
@@ -174,8 +170,8 @@ export default {
       this.getSegments()
     },
     getStravaData () {
-      getAthlete().then(r => { this.user = r.data })
-      this.getActivities()
+      this.stravaAuthenticated = true
+      getAthlete().then(r => { if (r) { this.user = r.data; this.getActivities() } })
     },
     // Activities
     getActivities () {
