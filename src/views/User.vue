@@ -29,22 +29,41 @@
         </div>
       </div>
 
-      <l-map ref="leafmap" :center="mapCenter" :zoom="mapZoom">
+      <l-map ref="leafmap" :center="mapCenter" :zoom="mapZoom" @click="clickMap">
         <l-tile-layer :url="'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'"></l-tile-layer>
         <!-- Segment search area -->
         <l-circle v-if="currentPosition" :lat-lng="currentPosition" :radius="segmentSearchRange" :color="seachAreaColor" :fill="false"/>
         <!-- Activity -->
         <l-polyline v-if="activity" :lat-lngs="activity.simplePath" :color="activityColor" @click="selectActivity(activity)"></l-polyline>
          <!-- Segments -->
-        <l-polyline v-for="gr in gravels" :lat-lngs="gr.path" :color="segmentColor" :key="gr.id" @click="selectGravel(gr.id)"></l-polyline>
+        <l-polyline v-for="gr in gravels" :lat-lngs="gr.path" :color="segmentColor" :key="gr.id" @click="(e) => { !newRoute ? selectGravel(gr.id) : addGravelToRoute(gr.id, e) }"></l-polyline>
         <!-- Route -->
-        <l-polyline v-if="newRoute.length > 0" :lat-lngs="newRoute" :color="routeColor"></l-polyline>
+        <template v-if="newRoute">
+          <l-polyline :lat-lngs="routeArrayToPath(newRoute)" :color="routeColor"></l-polyline>
+          <l-circle-marker
+            v-for="(routePoint, i) in newRoute.filter(p => p.lat !== undefined)"
+            :lat-lng="routePoint"
+            :radius="5"
+            :color="i === 0 ? routeStartColor : i === newRoute.filter(p => p.lat !== undefined).length - 1 ? routeFinishColor : routeColor"
+            :key="'route-' + i"
+          />
+        </template>
         <!-- Current location -->
         <l-circle-marker v-if="currentPosition" :lat-lng="currentPosition" :radius="5" :color="currentLocationColor"/>
         <!-- Timeline selection -->
         <l-polyline v-if="timelineStart || pathSelectionStartEndIndex" :lat-lngs="getSelectingPath(activity.path) || getSelectedPath(activity.path)" :color="selectionColor"></l-polyline>
         <!-- Timeline pointer -->
         <l-circle-marker v-if="timelineHover" :lat-lng="timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.path))" :radius="5" :color="pointerColor"/>
+        <div class="routeToolbar" @click.stop>
+          <button v-if="!newRoute" @click="newRoute = []">New Route</button>
+          <button v-else @click="newRoute = null">Cancel</button>
+          <template v-if="newRoute">
+            <input type="checkbox" v-model="manualRouting"/><label>Manual mode</label>
+            <button v-if="newRoute.length > 1" @click="undoRouteStep">Undo</button>
+            <button v-if="newRoute.length > 1" @click="exportRoute">Export GPX</button>
+          </template>
+          <button @click="recommendSegments" :disabled="activity == null">Recommend Segments</button> 
+        </div>
       </l-map>
 
       <div class="routeList gravels toggled">
@@ -56,11 +75,7 @@
             {{ gr.name }}
           </div>
         </div>
-        <button class="reccomendSegments" @click="reccomendSegments" :disabled="activity == null">Reccomend Segments</button>
-        <button class="toggleLinking" @click="toggleLinking">{{ linkingSegments ? 'Stop' : 'Start' }} Linking</button>
-        <button class="saveRoute" @click="saveLinking" :disabled="newRoute.length === 0">Export GPX</button>
       </div>
-
     </div>
     <div v-if="activity" class="activity">
       <div class="activityDetails">
@@ -102,6 +117,7 @@
 import polyline from '@mapbox/polyline'
 import moment from 'moment'
 import togpx from 'togpx'
+import L from 'leaflet'
 
 import { getAuthUrl, getToken, getAthlete, getActivities, getActivityStream } from '@/services/strava.service'
 import { createSegment, getSegments, getSegmentsByProximity} from '@/services/api.service'
@@ -121,7 +137,9 @@ export default {
       activityColor: '#FF0000',
       selectionColor: '#0000FF',
       segmentColor: '#2f2f2f',
+      routeStartColor: 'green',
       routeColor: 'orange',
+      routeFinishColor: 'red',
       pointerColor: 'orange',
       currentLocationColor: '#00FF00',
       seachAreaColor: '#2f2f2f',
@@ -131,13 +149,15 @@ export default {
       activities: [],
       activity: null,
       // Segments
-      segmentSearchRange: 200000,
+      segmentSearchRange: 2000000,
       gravels: [],
       gravel: null,
       newGravel: null,
       // Routing
-      newRoute: [],
-      linkingSegments: false,
+      newRoute: null, // Array of paths and points
+      manualRouting: false,
+      segmentRoutingId: null,
+      segmentRoutingPointIndex: null,
       //Timeline
       timelineHover: null,
       timelineStart: null,
@@ -233,17 +253,7 @@ export default {
     },
     selectGravel (id) {
       if (!this.gravel || this.gravel.id !== id) {
-        const gravel = this.gravels.find(g => g.id === id)
-        if (this.gravel && this.linkingSegments) {
-          const startPoint = this.gravel.path[this.gravel.path.length - 1]
-          const endPoint = gravel.path[0]
-          this.newRoute = this.newRoute.concat(this.gravel.path)
-          getDirections(startPoint.lng + ',' + startPoint.lat, endPoint.lng + ',' + endPoint.lat).then(r => {
-            this.newRoute = this.newRoute.concat(r.data.features[0].geometry.coordinates.map(p => { return {lat: p[1], lng: p[0]} }))
-            this.centerAndZoomPath(this.newRoute)
-          })
-        }
-        this.gravel = gravel
+        this.gravel = this.gravels.find(g => g.id === id)
       }
       this.centerAndZoomPath(this.gravel.path)
     },
@@ -258,7 +268,7 @@ export default {
       this.gravels = newGravels
       this.newGravel = null
     },
-    reccomendSegments() {
+    recommendSegments() {
       // get current strava route
       var path = this.activity.simplePath
       var encoded = polyline.encode(path.map(x => {
@@ -274,20 +284,75 @@ export default {
             var routes = r.data.map(s => {return polyline.decode(s.route)})
             routes = routes.map(route => {return route.map(coords => {return {lat: coords[0], lng: coords[1]}})})
             addRoutesToActivity(this.activity.simplePath, routes).then(retval => {
-                this.newRoute = retval
+              this.newRoute = [retval[0], retval, retval[retval.length - 1]]
             })
           //this.selectGravel(r.data[0].id)
         }
       })
     },
     // Routing
-    toggleLinking () {
-      if (this.linkingSegments) this.newRoute = []
-      this.linkingSegments = !this.linkingSegments
+    clickMap (e) {
+      if (this.newRoute) this.addPointToRoute(e.latlng)
+      if (this.segmentRoutingId) this.segmentRoutingId = null
     },
-    saveLinking () {
-      this.newRoute = this.newRoute.concat(this.gravel.path)
-      const blob = togpx(polyline.toGeoJSON(polyline.encode(this.newRoute.map(p => [p.lat, p.lng]))), { creator: 'Gravelly App' })
+    addGravelToRoute (id, e) {
+      L.DomEvent.stopPropagation(e)
+      const gravel = this.gravels.find(g => g.id === id)
+      let joinAtIndex = null
+      let minDistance = null
+      gravel.path.forEach((p, i) => {
+        const distance = this.distance(p.lat, p.lng, e.latlng.lat, e.latlng.lng)
+        if (i === 0 || distance < minDistance) {
+          joinAtIndex = i
+          minDistance = distance
+        }
+      })
+      if (this.segmentRoutingId && this.segmentRoutingId === id) {
+        if (joinAtIndex !== this.segmentRoutingPointIndex) {
+          const cropped = this.getCroppedPath(gravel.path, Math.min(this.segmentRoutingPointIndex, joinAtIndex), Math.max(this.segmentRoutingPointIndex, joinAtIndex))
+          this.newRoute.push(this.segmentRoutingPointIndex < joinAtIndex ? cropped : cropped.reverse())
+          this.newRoute.push(gravel.path[joinAtIndex])
+          this.segmentRoutingPointIndex = joinAtIndex
+        }
+      } else {
+        this.segmentRoutingId = id
+        this.segmentRoutingPointIndex = joinAtIndex
+        this.addPointToRoute(gravel.path[joinAtIndex], true)
+      }
+    },
+    addPointToRoute (latlng, keepOriginalPoint) {
+      if (this.newRoute.length === 0) this.newRoute.push(latlng)
+      else {
+        const lastPoint = this.newRoute[this.newRoute.length - 1]
+        this.newRoute.push(latlng)
+        if (!this.manualRouting) {
+          getDirections(lastPoint.lng + ',' + lastPoint.lat, latlng.lng + ',' + latlng.lat).then(r => {
+            this.newRoute = this.newRoute.concat()
+            const direction = r.data.features[0].geometry.coordinates.map(p => { return {lat: p[1], lng: p[0]} })
+            this.newRoute.push(keepOriginalPoint ? this.newRoute[this.newRoute.length - 1] : direction[direction.length - 1])
+            this.newRoute[this.newRoute.length - 2] = direction
+            this.newRoute[this.newRoute.length - 3] = direction[0]
+          })
+        }
+      }
+    },
+    undoRouteStep () {
+      const route = [...this.newRoute]
+      route.length = route.length - 1
+      if (!route[route.length - 1].lat) route.length = route.length - 1
+      this.newRoute = route
+    },
+    routeArrayToPath (route) {
+      let path = []
+      route.forEach(p => {
+        if (p.lat) p = [p]
+        if (path.length > 0 && p[0] === path.length[path.length - 1]) p.splice(0, 1)
+        path = path.concat(p)
+      })
+      return path
+    },
+    exportRoute () {
+      const blob = togpx(polyline.toGeoJSON(polyline.encode(this.routeArrayToPath(this.newRoute).map(p => [p.lat, p.lng]))), { creator: 'Gravelly App' })
       const title = 'Gravel route'
       const url = window.URL.createObjectURL(new Blob([blob]))
       const link = document.createElement('a')
@@ -313,6 +378,26 @@ export default {
       center.lng /= path.length
       this.mapCenter = center
       this.$refs.leafmap.mapObject.fitBounds([corner1, corner2], { padding: [30, 30] });
+    },
+    distance (lat1, lon1, lat2, lon2) {
+      if ((lat1 == lat2) && (lon1 == lon2)) {
+        return 0;
+      }
+      else {
+        var radlat1 = Math.PI * lat1/180;
+        var radlat2 = Math.PI * lat2/180;
+        var theta = lon1-lon2;
+        var radtheta = Math.PI * theta/180;
+        var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+        if (dist > 1) {
+          dist = 1;
+        }
+        dist = Math.acos(dist);
+        dist = dist * 180/Math.PI;
+        dist = dist * 60 * 1.1515;
+        dist = dist * 1.609344
+        return dist;
+      }
     },
     // Timeline fns
     sizeTimeline () {
@@ -628,30 +713,29 @@ export default {
   right: 0;
   transform: translateX(100%);
 }
-.gravels button {
+
+.leaflet-container .routeToolbar {
   position: absolute;
-  bottom: 10px;
-  margin: auto;
-  left: 0;
-  right: 0;
+    z-index: 1000;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(to bottom, rgba(0,0,0,0) 0%,rgba(0,0,0,1) 100%);
+    right: 0;
+    padding: 5px 10px;
+}
+.leaflet-container .routeToolbar button {
+  margin: 0 5px;
   font-size: 17px;
   border-radius: 50px;
   border: none;
   padding: 5px 15px;
   cursor: pointer;
 }
-.gravels .reccomendSegments {
-  bottom: 90px;
-}
-.gravels .toggleLinking {
-  bottom: 50px;
-}
-.gravels .saveRoute {
-  bottom: 10px;
-}
-
-.vue-map-container {
-  flex: 1;
+.leaflet-container .routeToolbar label {
+  font-size: 20px;
+  color: black;
 }
 
 .activity {
