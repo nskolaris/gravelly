@@ -95,8 +95,12 @@
       </div>
 
       <div class="timeline" ref="timelineContainer" :class="{loading: activity.loading}">
+        <div v-if="pathSelectionStartEndIndex" class="step start back disable-select" @click="timelineStep(0, -1)">&#10094;</div>
+        <div v-if="pathSelectionStartEndIndex" class="step start forward disable-select" @click="timelineStep(0, 1)">&#10095;</div>
         <canvas ref="timeline" height="0"/>
         <canvas ref="selection" @mousemove="timelineMove" @mousedown="timelineDown" @mouseup="timelineUp" @mouseout="timelineOut" height="0"/>
+        <div v-if="pathSelectionStartEndIndex" class="step end back disable-select" @click="timelineStep(1, -1)">&#10094;</div>
+        <div v-if="pathSelectionStartEndIndex" class="step end forward disable-select" @click="timelineStep(1, 1)">&#10095;</div>
       </div>
 
       <div class="newSegment">
@@ -280,7 +284,6 @@ export default {
         // highlight reccomended gravel for now
         // in the future, make a route out of the activity and the segment
         if (r.data.length > 0) {
-            console.log(r.data)
             var routes = r.data.map(s => {return polyline.decode(s.route)})
             routes = routes.map(route => {return route.map(coords => {return {lat: coords[0], lng: coords[1]}})})
             addRoutesToActivity(this.activity.simplePath, routes).then(retval => {
@@ -483,6 +486,12 @@ export default {
         this.resetTimeline()
         this.centerAndZoomPath(this.activity.simplePath)
       }
+    },
+    timelineStep (i, step) {
+      const startEndIndex = [...this.pathSelectionStartEndIndex]
+      startEndIndex[i] += step
+      this.pathSelectionStartEndIndex = startEndIndex
+      this.drawTimeline()
     },
     timelinePoint2ArrayIndex (point, path) {
       const canvas = this.$refs.timeline.getBoundingClientRect()
@@ -804,5 +813,23 @@ export default {
 .activity .timeline.loading canvas {
   opacity: 0;
   pointer-events: none;
+}
+.activity .timeline .step {
+  position: absolute;
+  cursor: pointer;
+  font-size: 20px;
+  z-index: 10;
+}
+.activity .timeline .step.start {
+  left: 5px;
+}
+.activity .timeline .step.end {
+  right: 5px;
+}
+.activity .timeline .step.back {
+  top: 10px;
+}
+.activity .timeline .step.forward {
+  bottom: 10px;
 }
 </style>

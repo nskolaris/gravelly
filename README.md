@@ -24,7 +24,6 @@ npm run lint
 See [Configuration Reference](https://cli.vuejs.org/config/).
 
 ### Planned features
-- Timeline Selection: step selecting
 - Timeline Selection: Lap cropping
 - Segment list panel not really necessary
 - Segment name non obligatory (we cannot possibly name every single bit of gravel)
