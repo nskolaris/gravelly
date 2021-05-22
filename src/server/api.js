@@ -113,7 +113,11 @@ app.put('/segment', (req, res) => {
 
 app.get("/segments", (req, res, next) => {
 	// look up the segment by its id, return all info
-	db.Segment.findAll().then(segments => {
+	db.Segment.findAll({
+		include: {
+			model: db.Picture
+		}
+	}).then(segments => {
 		segments.map(s => {
 			s.route = polyline.fromGeoJSON(s.route);
 		})
@@ -168,7 +172,10 @@ app.get("/segment_search", (req, res, next) => {
 			      true
 		      ),
 		      true
-	      )
+	      ),
+	      include: {
+	              model: db.Picture
+	      }
 	}).then(segments => {
 		segments.map(s => {
 			s.route = polyline.fromGeoJSON(s.route);
