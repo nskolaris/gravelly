@@ -13,12 +13,17 @@
         <template v-if="stravaAuthenticated">
           <div class="head">
             <h1>Your Activities</h1>
+            <div class="importActivity" @click="() => { $refs.importActivity.click() }">&#8657;</div>
+            <input style="display: none;" ref="importActivity" accept=".gpx" type="file" @change="importActivity">
           </div>
           <div class="scrollContainer" @scroll="scrollActivities" :class="{loading: loadingActivities}">
             <div class="route" v-for="ac in activities" :key="ac.id" @click="selectActivity(ac)" :class="{active: activity && activity.id === ac.id}">
-              <div class="name">{{ ac.name }}</div>
+              <div class="name">
+                {{ ac.name }}
+                <span v-if="ac.id === 'uploaded'" class="description">Uploaded</span>
+              </div>
               <div class="details">
-                {{ moment(ac.start_date).format('MMM DD') }}<br/>
+                <template v-if="ac.start_date">{{ moment(ac.start_date).format('MMM DD') }}<br/></template>
                 {{ (ac.distance / 1000).toFixed(0) }} km
               </div>
             </div>
@@ -79,7 +84,7 @@
     </div>
     <div v-if="activity" class="activity">
       <div class="activityDetails">
-        <div class="detail">
+        <div v-if="activity.start_date" class="detail">
           <span>{{ moment(activity.start_date).format('YYYY-MM-DD HH:mm') }}</span>
           <span>{{ moment().startOf('day').seconds(timelineHover && activity.time ? timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.time)) : activity.elapsed_time).format('H:mm:ss') }}</span>
         </div>
@@ -88,7 +93,7 @@
           <span>{{ (activity.distance / 1000).toFixed(2) }} km</span>
           <span v-if="timelineHover && activity.distanceStream">{{ (timelinePoint2ArrayValue(timelineHover, getSelectedPath(activity.distanceStream)) / 1000).toFixed(2) }} km</span>
         </div>
-        <div class="detail">
+        <div v-if="activity.total_elevation_gain" class="detail">
           <span>{{ activity.total_elevation_gain }} m</span>
           <span v-if="timelineHover && activity.altitude">{{ timelinePoint2ArrayValue(timelineHover, activity.altitude) }} m</span>
         </div>
@@ -119,6 +124,7 @@
 
 <script>
 import polyline from '@mapbox/polyline'
+import gpxParser from 'gpxparser'
 import moment from 'moment'
 import togpx from 'togpx'
 import L from 'leaflet'
@@ -198,34 +204,71 @@ export default {
       getAthlete().then(r => { if (r) { this.user = r.data; this.getActivities() } })
     },
     // Activities
+    importActivity (e) {
+      const context = this
+      var reader = new FileReader()
+      reader.readAsText(e.target.files[0])
+      reader.onloadend = function(){
+        var gpx = new gpxParser()
+        gpx.parse(reader.result)
+        const path = []
+        const altitude = []
+        const time = []
+        gpx.tracks[0].distance.cumulative
+        gpx.tracks[0].points.forEach(p => {
+          path.push({lat: p.lat, lng: p.lon})
+          altitude.push(p.ele)
+          time.push(moment(p.time).diff(moment(gpx.metadata.time), 'seconds'))
+        })
+        const activity = {
+          id: 'uploaded',
+          name: gpx.tracks[0].name || 'Uploaded activity',
+          start_date: gpx.metadata.time,
+          distance: gpx.tracks[0].distance.total,
+          distanceStream: gpx.tracks[0].distance.cumul,
+          path,
+          altitude,
+          total_elevation_gain: gpx.tracks[0].elevation.pos ? gpx.tracks[0].elevation.pos.toFixed(1) : 0,
+          elev_low: gpx.tracks[0].elevation.min && isFinite(gpx.tracks[0].elevation.min) ? gpx.tracks[0].elevation.min : 0,
+          elev_high: gpx.tracks[0].elevation.max && isFinite(gpx.tracks[0].elevation.max) ? gpx.tracks[0].elevation.max : 0,
+          time,
+          elapsed_time: time[time.length - 1]
+        }
+        if (context.activities[0].id !== 'uploaded') context.activities.unshift(activity)
+        else context.activities[0] = activity
+        context.selectActivity(activity, true)
+      }
+    },
     getActivities () {
       if (!this.loadingActivities) {
         this.loadingActivities = true
-        const page = (this.activities.length / this.activitiesPerPage) + 1
+        const page = Math.floor(this.activities.length / this.activitiesPerPage) + 1
         getActivities(this.activitiesPerPage, page).then(r => {
           this.activities = this.activities.concat(r.data)
           this.loadingActivities = false
         })
       }
     },
-    selectActivity (act) {
-      if (!this.activity || this.activity.id !== act.id) {
+    selectActivity (act, forceSelect) {
+      if (forceSelect || !this.activity || this.activity.id !== act.id) {
         this.activity = act
-        this.activity.simplePath = polyline.decode(this.activity.map.summary_polyline).map(p => { return {lat: p[0], lng: p[1]} })
-        this.activity.loading = true
+        this.activity.simplePath = this.activity.map ? polyline.decode(this.activity.map.summary_polyline).map(p => { return {lat: p[0], lng: p[1]} }) : this.activity.path
         this.resetTimeline()
-        getActivityStream(act.id).then(streams => {
-          if (this.activity) {
-            const activity = {...this.activity}
-            activity.path = streams.data.latlng.data.map(p => { return {lat: p[0], lng: p[1]} })
-            activity.altitude = streams.data.altitude.data
-            activity.distanceStream = streams.data.distance.data
-            activity.time = streams.data.time.data
-            activity.loading = false
-            this.activity = activity
-            this.drawTimeline()
-          }
-        })
+        if (act.id !== 'uploaded') {
+          this.activity.loading = true
+          getActivityStream(act.id).then(streams => {
+            if (this.activity) {
+              const activity = {...this.activity}
+              activity.path = streams.data.latlng.data.map(p => { return {lat: p[0], lng: p[1]} })
+              activity.altitude = streams.data.altitude.data
+              activity.distanceStream = streams.data.distance.data
+              activity.time = streams.data.time.data
+              activity.loading = false
+              this.activity = activity
+              this.drawTimeline()
+            }
+          })
+        }
         this.centerAndZoomPath(this.activity.simplePath)
       } else {
         this.activity = null
@@ -429,11 +472,15 @@ export default {
           }
           ctx.beginPath()
           const elevation_diff = elev_high - elev_low
+          let lastX = null
           altitude.forEach((p, i) => {
-            const x = (((i * 100) / altitude.length) * canvas.width) / 100
-            const y = (((((p - elev_low) * 100) / elevation_diff) * canvas.height * 0.8) / 100) + canvas.height * 0.1
-            if (i === 0) ctx.moveTo(x, canvas.height - y)
-            else ctx.lineTo(x, canvas.height - y)
+            const x = Math.floor((((i * 100) / altitude.length) * canvas.width) / 100)
+            if (lastX === null || lastX !== x) {
+              lastX = x
+              const y = elevation_diff ? (((((p - elev_low) * 100) / elevation_diff) * canvas.height * 0.8) / 100) + canvas.height * 0.1 : canvas.height / 2
+              if (i === 0) ctx.moveTo(x, canvas.height - y)
+              else ctx.lineTo(x, canvas.height - y)
+            }
           })
           ctx.stroke()
         }
@@ -646,8 +693,9 @@ export default {
   height: 40px;
   z-index: 1;
   background: linear-gradient(to bottom, rgba(0,0,0,1) 0%,rgba(255,255,255,0) 100%);
-  padding: 5px 10px 10px;
+  padding: 5px 30px 10px 10px;
   pointer-events: none;
+  justify-content: space-between;
 }
 .routeList > .head h1 {
   margin: 0;
@@ -655,6 +703,12 @@ export default {
   font-weight: 400;
   color: var(--text-color-3);
   font-family: 'Kaushan Script', cursive;
+}
+.routeList > .head .importActivity {
+  pointer-events: all;
+  color: var(--text-color-3);
+  cursor: pointer;
+  font-size: 24px;
 }
 .routeList .scrollContainer {
   height: 100%;
@@ -695,6 +749,11 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.routeList .route .name .description {
+  display: block;
+  font-size: 10px;
+  color: var(--text-color-2);
+}
 .routeList .route .details {
   white-space: nowrap;
   color: var(--text-color-2);
@@ -732,7 +791,7 @@ export default {
     align-items: center;
     background: linear-gradient(to bottom, rgba(0,0,0,0) 0%,rgba(0,0,0,1) 100%);
     right: 0;
-    padding: 5px 10px;
+    padding: 10px;
 }
 .leaflet-container .routeToolbar button {
   margin: 0 5px;
@@ -786,7 +845,7 @@ export default {
 .activity .timeline {
   position: relative;
   flex: 1;
-  margin: 0 20px;
+  margin: 10px 20px;
   box-sizing: border-box;
   height: 75px;
   background-color: var(--bg-color-2);

@@ -27,7 +27,6 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 - Timeline Selection: Lap cropping
 - Segment list panel not really necessary
 - Segment name non obligatory (we cannot possibly name every single bit of gravel)
-- Import activity from GPX
 - Draw segment (manual/auto)
 - Add pictures to segment
 - Segment type / filters
