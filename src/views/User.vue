@@ -6,11 +6,14 @@
         {{ user.firstname }}
         <img :src="user.profile_medium"/>
       </div>
+      <div v-else-if="!stravaAuthenticated" class="connectStrava">
+        <a :href="getAuthUrl()">Connect with Strava</a> to create gravel segments from your activities
+      </div>
     </div>
     <div class="content">
 
       <div class="routeList activities toggled">
-        <template v-if="stravaAuthenticated">
+        <template>
           <div class="head">
             <h1>Your Activities</h1>
             <div class="importActivity" @click="() => { $refs.importActivity.click() }">&#8657;</div>
@@ -29,9 +32,7 @@
             </div>
           </div>
         </template>
-        <div class="connectStrava" v-else>
-          <a :href="getAuthUrl()">Connect with Strava</a> to create gravel segments from your activities
-        </div>
+        
       </div>
 
       <l-map ref="leafmap" :center="mapCenter" :zoom="mapZoom" @click="clickMap">
@@ -234,7 +235,7 @@ export default {
           time,
           elapsed_time: time[time.length - 1]
         }
-        if (context.activities[0].id !== 'uploaded') context.activities.unshift(activity)
+        if (context.activities.length === 0 || context.activities[0].id !== 'uploaded') context.activities.unshift(activity)
         else context.activities[0] = activity
         context.selectActivity(activity, true)
       }
@@ -638,6 +639,13 @@ export default {
   height: 40px;
 }
 
+.connectStrava {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  font-size: 17px;
+}
+
 .content {
   display: flex;
   min-height: 0;
@@ -763,18 +771,6 @@ export default {
 .activities {
   left: 0;
   transform: translateX(-100%);
-}
-.activities .connectStrava {
-  position: absolute;
-  text-align: center;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 20px;
-  font-size: 17px;
 }
 
 .gravels {
