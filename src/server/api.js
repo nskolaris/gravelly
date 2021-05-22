@@ -41,6 +41,21 @@ app.get("/segment", (req, res, next) => {
 
 });
 
+app.delete("/segment", (req, res, next) => {
+	// look up the segment by its id, return all info
+	var segment_id = req.query.id
+	var segment = db.Segment.findByPk(parseInt(segment_id)).then(segment => {
+		if (segment instanceof db.Segment) {
+			segment.is_removed = true
+			segment.save()
+			res.json({'success': true})
+		} else {
+			res.json({'success': false})
+		}
+	});
+
+});
+
 
 
 // POST register new segment
@@ -56,11 +71,114 @@ app.post('/segment', (req, res) => {
 	obj = {
 		name: req.body.name,
 		description: req.body.description,
-		route: route
+		route: route,
+		chunkyness: req.body.chunkyness,
+		waytype: req.body.waytype
 	}
 	db.Segment.create(obj)
 	res.send('created');
 })
+
+app.put('/segment', (req, res) => {
+	var segment_id = req.body.segment_id
+	var segment = db.Segment.findByPk(parseInt(segment_id)).then(segment => {
+		if (segment instanceof db.Segment) {
+			if (typeof req.body.name != 'undefined') {
+				segment.name = req.body.name
+			}
+			if (typeof req.body.description != 'undefined') {
+				segment.description = req.body.description
+			}
+			if (typeof req.body.strava_link != 'undefined') {
+				segment.strava_link = req.body.strava_link
+			}
+			if (typeof req.body.waytype != 'undefined') {
+				segment.waytype = req.body.waytype
+			}
+			if (typeof req.body.chunkyness != 'undefined') {
+				segment.chunkyness = req.body.chunkyness
+			}
+			if (typeof req.body.route != 'undefined') {
+				if (typeof req.body.route == 'string') {
+					segment.route = polyline.toGeoJSON(req.body.route);
+				}
+			}
+			segment.save()
+			res.json({'success': true})
+		} else {
+			res.json({'success': false})
+		}
+	});
+})
+
+app.get("/segments", (req, res, next) => {
+	// look up the segment by its id, return all info
+	db.Segment.findAll().then(segments => {
+		segments.map(s => {
+			s.route = polyline.fromGeoJSON(s.route);
+		})
+		res.json(segments)
+	})
+
+});
+
+
+app.post("/flag_segment", (req, res, next) => {
+	// look up the segment by its id, return all info
+	// TODO: rework this when users are a thing
+	var segment_id = req.body.segment_id
+	var segment = db.Segment.findByPk(parseInt(segment_id)).then(segment => {
+		if (segment instanceof db.Segment) {
+			if (segment.flag_count == null) {
+				segment.flag_count = 0
+			} else {
+				segment.flag_count += 1
+			}
+			segment.save()
+			res.json({'success': true})
+		} else {
+			res.json({'success': false})
+		}
+	});
+
+});
+
+
+
+
+// GET list of segments by location (lat lng) + range in KM
+app.get("/segment_search", (req, res, next) => {
+	// find all relevant segments, return IDs, Names and geometries
+	// so they can be rendered on the front end
+	if (typeof req.query.lat != 'undefined') {
+		var lat = req.query.lat
+		var lng = req.query.lng
+		var geom = 'POINT(' + lng + ' ' + lat + ')'
+	} else if (typeof req.query.geom != 'undefined') {
+		var geom = wkt.stringify(polyline.toGeoJSON(req.query.geom));
+	}
+	var range = req.query.range;
+	db.Segment.findAll({
+	      where: db.sequelize.where(
+		      db.sequelize.fn(
+			      'ST_DWithin',
+			      db.sequelize.col('route'),
+			      geom,
+			      range,
+			      true
+		      ),
+		      true
+	      )
+	}).then(segments => {
+		segments.map(s => {
+			s.route = polyline.fromGeoJSON(s.route);
+		})
+		res.json(segments)
+	})
+
+});
+
+// pictures
 
 app.get("/picture", (req, res, next) => {
 	// look up the segment by its id, return all info
@@ -108,50 +226,42 @@ app.get("/pictures", (req, res, next) => {
 
 });
 
-
-app.get("/segments", (req, res, next) => {
+// ratings
+//
+app.get("/ratings", (req, res, next) => {
 	// look up the segment by its id, return all info
-	db.Segment.findAll().then(segments => {
-		segments.map(s => {
-			s.route = polyline.fromGeoJSON(s.route);
+	var segment_id = req.query.segment_id
+	if (typeof segment_id == 'undefined') {
+		// return all ratings
+		// TODO: consider removing this functionality in the future
+		db.Rating.findAll().then(ratings => {
+			res.send(ratings)
 		})
-		res.json(segments)
-	})
-
-});
-
-
-// GET list of segments by location (lat lng) + range in KM
-app.get("/segment_search", (req, res, next) => {
-	// find all relevant segments, return IDs, Names and geometries
-	// so they can be rendered on the front end
-	if (typeof req.query.lat != 'undefined') {
-		var lat = req.query.lat
-		var lng = req.query.lng
-		var geom = 'POINT(' + lng + ' ' + lat + ')'
-	} else if (typeof req.query.geom != 'undefined') {
-		var geom = wkt.stringify(polyline.toGeoJSON(req.query.geom));
+	} else {
+		// return relevant ratings
+		db.Rating.findAll({
+			where: {SegmentId: segment_id}
+		}).then(ratings => {
+			res.send(ratings)
+		})
 	}
-	var range = req.query.range;
-	db.Segment.findAll({
-	      where: db.sequelize.where(
-		      db.sequelize.fn(
-			      'ST_DWithin',
-			      db.sequelize.col('route'),
-			      geom,
-			      range,
-			      true
-		      ),
-		      true
-	      )
-	}).then(segments => {
-		segments.map(s => {
-			s.route = polyline.fromGeoJSON(s.route);
-		})
-		res.json(segments)
-	})
-
 });
+
+
+app.post('/rating', (req, res) => {
+	// make a new rating
+	obj = {
+		SegmentId: req.body.segment_id,
+		rating: req.body.rating, // should be between 0 and 5
+		comment: req.body.comment
+	}
+	db.Rating.create(obj)
+	res.send('created');
+})
+
+// misc stuff
+
+
 
 // TODO: update/delete on segment
 
