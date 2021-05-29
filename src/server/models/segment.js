@@ -18,7 +18,11 @@ module.exports = (sequelize, DataTypes) => {
     description: DataTypes.STRING,
     route: DataTypes.GEOMETRY,
     strava_link: DataTypes.STRING,
-    UserId: DataTypes.INTEGER
+    UserId: DataTypes.INTEGER,
+    flag_count: DataTypes.INTEGER, //TODO: replace with a link table, inclde 'flag_reason'
+    is_removed: DataTypes.BOOLEAN,
+    chunkyness: DataTypes.INTEGER,
+    waytype: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Segment',
