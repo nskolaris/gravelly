@@ -1,0 +1,74 @@
+generator client {
+	provider = "prisma-client-js"
+}
+
+datasource db {
+	provider = "sqlite"
+	url = "file:../../database/database.sqlite"
+	shadowDatabaseUrl = "file:../../database/shadow.sqlite"
+}
+
+model User {
+	id Int @id @default(autoincrement())
+	name String?
+	email String
+	password String
+	stravaLink String?
+
+	// Relations
+	segments Segment[]
+}
+
+model Segment {
+	id Int @id @default(autoincrement())
+	name String
+	description String?
+
+	// Geometry is not currently supported for queries
+	// https://github.com/prisma/prisma/issues/1798#issuecomment-775016807
+	// https://github.com/prisma/prisma/issues/2789
+	route String
+	stravaLink String?
+	removed Boolean @default(false)
+	chunkyness Int?
+	wayType String?
+	userId Int
+
+	// Relations
+	owner User @relation(fields: [userId], references: [id])
+	pictures Picture[]
+	ratings Rating[]
+	flags Flag[]
+}
+
+model Picture {
+	id Int @id @default(autoincrement())
+	name String?
+	description String?
+	path String?
+	lat Float?
+	lng Float?
+	segmentId Int
+
+	// Relations
+	owner Segment @relation(fields: [segmentId], references: [id])
+}
+
+model Rating {
+	id Int @id @default(autoincrement())
+	rating Float
+	comment String?
+	segmentId Int
+
+	// Relations
+	owner Segment @relation(fields: [segmentId], references: [id])
+}
+
+model Flag {
+	id Int @id @default(autoincrement())
+	reason String
+	segmentId Int
+
+	// Relations
+	owner Segment @relation(fields: [segmentId], references: [id])
+}
