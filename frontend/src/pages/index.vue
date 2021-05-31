@@ -164,15 +164,12 @@ import polyline from '@mapbox/polyline'
 import gpxParser from 'gpxparser'
 import moment from 'moment'
 import togpx from 'togpx'
-import L from 'leaflet'
 import EXIF from 'exif-js'
 
 import { getAuthUrl, getToken, getAthlete, getActivities, getActivityStream } from '@/services/strava.service'
 import { createSegment, getSegments, getSegmentsByProximity } from '@/services/api.service'
 import { addRoutesToActivity } from '@/services/geo.service'
 import { getDirections } from '@/services/ors.service'
-
-import 'leaflet/dist/leaflet.css'
 
 export default {
 	name: 'User',
@@ -410,7 +407,6 @@ export default {
 			if (this.segmentRoutingId) this.segmentRoutingId = null
 		},
 		addGravelToRoute (id, e) {
-			L.DomEvent.stopPropagation(e)
 			const gravel = this.gravels.find(g => g.id === id)
 			let joinAtIndex = null
 			let minDistance = null
