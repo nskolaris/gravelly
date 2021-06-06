@@ -19,7 +19,7 @@ export default {
 				// Get rid of the src/routes part
 				paths.splice(0, 2);
 
-				let routePath: string = paths.join(slash);
+				let routePath: string = paths.join('/');
 
 				// Transform path variables to express variables
 				routePath = routePath.replace('_', ':');
