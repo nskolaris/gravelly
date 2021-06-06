@@ -39,7 +39,8 @@ const config: NuxtConfig = {
 		domain: process.env.domain ?? `http://localhost:${process.env.port ?? 8080}`,
 		stravaClientId: process.env.VUE_APP_STRAVA_CLIENT_ID ?? '',
 		stravaClientSecret: process.env.VUE_APP_STRAVA_CLIENT_SECRET ?? '',
-		orsApiKey: process.env.VUE_APP_ORS_API_KEY ?? ''
+		orsApiKey: process.env.VUE_APP_ORS_API_KEY ?? '',
+		apiUrl: process.env.VUE_APP_API_URL ?? ''
 	},
 	build: {
 		postcss: false,

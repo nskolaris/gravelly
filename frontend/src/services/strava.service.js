@@ -29,7 +29,7 @@ function get (url) {
 }
 
 export function getAuthUrl () {
-	return `https://www.strava.com/oauth/authorize?client_id=66062&redirect_uri=${process.env.domain}/&response_type=code&scope=read_all,activity:read_all`
+	return `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${process.env.domain}/&response_type=code&scope=read_all,activity:read_all`
 }
 
 export function getAthlete () {
