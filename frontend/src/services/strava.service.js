@@ -5,19 +5,19 @@ const clientSecret = process.env.stravaClientSecret
 
 export function getToken (code) {
 	function gotToken (response) {
-		localStorage.token = response.data.access_token
-		localStorage.refreshToken = response.data.refresh_token
+		localStorage.stravaToken = response.data.access_token
+		localStorage.stravaRefreshToken = response.data.refresh_token
 	}
 	if (code) {
 		return axios.post(`https://www.strava.com/oauth/token?client_id=${clientId}&client_secret=${clientSecret}&code=${code}&grant_type=authorization_code`).then(gotToken)
-	} else if (localStorage.refreshToken) {
-		return axios.post(`https://www.strava.com/oauth/token?client_id=${clientId}&client_secret=${clientSecret}&refresh_token=${localStorage.refreshToken}&grant_type=refresh_token`).then(gotToken)
+	} else if (localStorage.stravaRefreshToken) {
+		return axios.post(`https://www.strava.com/oauth/token?client_id=${clientId}&client_secret=${clientSecret}&refresh_token=${localStorage.stravaRefreshToken}&grant_type=refresh_token`).then(gotToken)
 	}
 }
 
 function get (url) {
 	return new Promise(resolve => {
-		axios.get(url, { headers: { Authorization: `Bearer ${localStorage.token}` } })
+		axios.get(url, { headers: { Authorization: `Bearer ${localStorage.stravaToken}` } })
 			.catch(e => {
 				if (e.response.status === 401) {
 					getToken().then(() => {

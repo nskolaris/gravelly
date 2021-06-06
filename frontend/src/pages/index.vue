@@ -222,7 +222,7 @@ export default {
 			this.getInitialData()
 		}, this.getInitialData)
 
-		if (localStorage.token) {
+		if (localStorage.stravaToken) {
 			this.getStravaData()
 		} else if (this.$route.query.code) {
 			getToken(this.$route.query.code).then(() => {
@@ -295,7 +295,7 @@ export default {
 				this.loadingActivities = true
 				const page = Math.floor(this.activities.length / this.activitiesPerPage) + 1
 				getActivities(this.activitiesPerPage, page).then(r => {
-					this.activities = this.activities.concat(r.data)
+					this.activities = this.activities.concat(r.data.filter(a => a.type === 'Ride'))
 					this.loadingActivities = false
 				})
 			}
