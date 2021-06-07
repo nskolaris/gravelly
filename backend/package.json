@@ -73,6 +73,6 @@
 		"schema": "src/prisma/schema.prisma"
 	},
 	"volta": {
-    "node": "16.1.0"
-  }
+		"node": "16.1.0"
+	}
 }

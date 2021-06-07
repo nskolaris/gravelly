@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-	provider = "sqlite"
-	url = "file:../../database/database.sqlite"
-	shadowDatabaseUrl = "file:../../database/shadow.sqlite"
+	provider = "postgresql"
+  url      = "postgresql://gravelly:test123@localhost:5432/gravelly?schema=public"
 }
 
 model User {
@@ -27,7 +26,7 @@ model Segment {
 	// Geometry is not currently supported for queries
 	// https://github.com/prisma/prisma/issues/1798#issuecomment-775016807
 	// https://github.com/prisma/prisma/issues/2789
-	route String
+	route Unsupported("geometry")?
 	stravaLink String?
 	removed Boolean @default(false)
 	chunkyness Int?
