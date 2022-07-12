@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import prisma from '../../structures/database';
 import { RequestWithUser } from '../../middlewares/auth';
-import polyline from '@mapbox/polyline';
+// import polyline from '@mapbox/polyline';
 
 import type { Segment } from '../../structures/interfaces';
 
@@ -18,7 +18,7 @@ export const run = async (req: RequestWithUser, res: Response) => {
 			userId: req.user.id,
 			name,
 			description,
-			route: JSON.stringify(polyline.toGeoJSON(route)),
+			// route: JSON.stringify(polyline.toGeoJSON(route)),
 			chunkyness: Number(chunkyness),
 			wayType,
 			stravaLink
