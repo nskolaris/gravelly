@@ -79,9 +79,9 @@
 							Export GPX
 						</button>
 					</template>
-					<button :disabled="activity == null" @click="recommendSegments">
+					<!-- <button :disabled="activity == null" @click="recommendSegments">
 						Recommend Segments
-					</button>
+					</button> -->
 				</div>
 			</l-map>
 

@@ -1,3 +1,4 @@
+/* eslint-disable */
 var db = require('./models/index.js');
 var wkt = require('wkt');
 var polyline = require('@mapbox/polyline');

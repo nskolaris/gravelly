@@ -46,17 +46,30 @@
     "root": true,
     "extends": [
       "aqua/vue",
-			"aqua/node"
+      "aqua/node"
     ],
     "parserOptions": {
       "parser": "babel-eslint",
       "sourceType": "module"
     },
-		"rules": {
-      "vue/comma-dangle": ["error", "never"],
-			"semi": ["error", "never"],
-			"comma-dangle": ["error", "never"],
-			"space-before-function-paren": ["error", "always"]
+    "rules": {
+      "vue/comma-dangle": [
+        "error",
+        "never"
+      ],
+      "semi": [
+        "error",
+        "never"
+      ],
+      "comma-dangle": [
+        "error",
+        "never"
+      ],
+      "space-before-function-paren": [
+        "error",
+        "always"
+      ],
+      "linebreak-style": 0
     }
   },
   "volta": {

@@ -1,6 +1,11 @@
 import axios from 'axios'
 
-export function createSegment (data) {
+export function createSegment (segment) {
+	const data = {
+		...segment,
+		chunkyness: 1,
+		waytype: '1'
+	}
 	return axios.post(`http://localhost:3000/segment`, data)
 }
 
